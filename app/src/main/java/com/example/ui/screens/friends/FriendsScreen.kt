@@ -173,7 +173,7 @@ fun FriendsScreen(
             list.add(
                 FriendItem(
                     id = "4",
-                    name = "আকাশ আহমেদ",
+                    name = "Akash Ahmed",
                     avatarUrl = "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400",
                     mutualFriends = 6,
                     bio = "Digital Marketing Strategist",

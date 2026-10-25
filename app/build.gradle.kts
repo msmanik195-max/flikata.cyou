@@ -16,8 +16,8 @@ android {
     applicationId = "com.flikata.cyou"
     minSdk = 26
     targetSdk = 36
-    versionCode = 10
-    versionName = "2.0"
+    versionCode = 18
+    versionName = "11.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

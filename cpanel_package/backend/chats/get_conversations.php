@@ -16,6 +16,17 @@ if (!$myId) {
     exit;
 }
 
+// Check allow_chat
+try {
+    $fsStmt = $pdo->query("SELECT allow_chat FROM app_feature_settings WHERE id = 1");
+    $allowChat = $fsStmt ? $fsStmt->fetchColumn() : 1;
+    if ($allowChat !== false && (int)$allowChat === 0) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+} catch (Exception $e) {}
+
 // 1. Fetch conversations involving the user
 $stmt = $pdo->prepare("
     SELECT 

@@ -164,13 +164,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </head>
 <body>
 
-<div class="login-card">
-    <div class="text-center mb-4">
+<div class="login-card position-relative">
+    <!-- Top Right Language Switcher on Login Screen -->
+    <div class="position-absolute top-0 end-0 p-3">
+        <div class="dropdown">
+            <button class="btn btn-sm btn-outline-secondary rounded-pill px-2 py-1 dropdown-toggle small" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="font-size: 11.5px;">
+                <i class="bi bi-translate me-1"></i><?= $currentLang === 'en' ? 'English' : 'বাংলা' ?>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0 rounded-3 p-1">
+                <li><a class="dropdown-item rounded-2 small <?= $currentLang === 'bn' ? 'active fw-bold' : '' ?>" href="?set_lang=bn">বাংলা (Bengali)</a></li>
+                <li><a class="dropdown-item rounded-2 small <?= $currentLang === 'en' ? 'active fw-bold' : '' ?>" href="?set_lang=en">English</a></li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="text-center mb-4 pt-2">
         <div class="brand-badge">
             <i class="bi bi-shield-lock-fill"></i>
         </div>
-        <h3 class="fw-bold mb-1" style="color: #0f172a; letter-spacing: -0.02em;">Flikata Admin</h3>
-        <p class="text-muted small mb-0">অ্যাডমিনিস্ট্রেটর পোর্টাল - লাইট মোড</p>
+        <h3 class="fw-bold mb-1" style="color: #0f172a; letter-spacing: -0.02em;"><?= __('app_name', 'Flikata Admin') ?></h3>
+        <p class="text-muted small mb-0"><?= __('admin_portal', 'Administrator Portal - Secure Login') ?></p>
     </div>
 
     <?php if (!empty($errorMsg)): ?>
@@ -182,48 +195,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <form method="POST" action="login.php" autocomplete="off">
         <div class="mb-3">
-            <label class="form-label small fw-bold text-secondary mb-1">এডমিন ইমেইল (Admin Email)</label>
+            <label class="form-label small fw-bold text-secondary mb-1"><?= __('email_label', 'Admin Email') ?></label>
             <div class="input-group">
                 <span class="input-group-text bg-white border-end-0 border" style="border-radius: 12px 0 0 12px; border-color: #e2e8f0 !important;">
                     <i class="bi bi-envelope text-muted"></i>
                 </span>
-                <input type="email" name="email" class="form-control form-control-custom border-start-0" style="border-radius: 0 12px 12px 0;" placeholder="admin@gmail.com" value="<?= htmlspecialchars($_POST['email'] ?? 'admin@gmail.com') ?>" required autofocus>
+                <input type="email" name="email" class="form-control form-control-custom border-start-0" style="border-radius: 0 12px 12px 0;" placeholder="<?= __('email_placeholder', 'Enter Admin Email') ?>" value="" required autofocus>
             </div>
         </div>
 
-        <div class="mb-3">
+        <div class="mb-4">
             <div class="d-flex justify-content-between align-items-center mb-1">
-                <label class="form-label small fw-bold text-secondary mb-0">পাসওয়ার্ড (Password)</label>
+                <label class="form-label small fw-bold text-secondary mb-0"><?= __('password_label', 'Password') ?></label>
             </div>
             <div class="input-group">
                 <span class="input-group-text bg-white border-end-0 border" style="border-radius: 12px 0 0 12px; border-color: #e2e8f0 !important;">
                     <i class="bi bi-lock text-muted"></i>
                 </span>
-                <input type="password" id="passwordInput" name="password" class="form-control form-control-custom border-start-0 border-end-0" placeholder="••••••••" value="11223344" required>
+                <input type="password" id="passwordInput" name="password" class="form-control form-control-custom border-start-0 border-end-0" placeholder="<?= __('password_placeholder', '••••••••') ?>" value="" required>
                 <button class="btn btn-outline-secondary border bg-white" style="border-radius: 0 12px 12px 0; border-color: #e2e8f0 !important;" type="button" onclick="togglePasswordVisibility()">
                     <i class="bi bi-eye" id="togglePassIcon"></i>
                 </button>
             </div>
         </div>
 
-        <!-- Quick Credentials Hint Box -->
-        <div class="credential-box mb-4">
-            <div class="d-flex align-items-center justify-content-between">
-                <span class="text-secondary fw-semibold"><i class="bi bi-key-fill text-primary me-1"></i> ডিফল্ট লগইন তথ্য:</span>
-                <span class="badge bg-primary-subtle text-primary fw-bold">Primary</span>
-            </div>
-            <div class="mt-1 text-muted">
-                <div>Email: <strong class="text-dark">admin@gmail.com</strong></div>
-                <div>Password: <strong class="text-dark">11223344</strong></div>
-            </div>
-        </div>
-
-        <button type="submit" class="btn btn-login w-100 mb-3">
-            <i class="bi bi-box-arrow-in-right me-2"></i> অ্যাডমিন প্যানেলে প্রবেশ করুন
+        <button type="submit" class="btn btn-login w-100 mb-3 py-2.5">
+            <i class="bi bi-shield-check me-2"></i> <?= __('sign_in_btn', 'Sign In to Admin Portal') ?>
         </button>
 
         <div class="text-center text-muted" style="font-size: 0.8rem;">
-            &copy; <?= date('Y') ?> Flikata Social App. All rights reserved.
+            &copy; <?= date('Y') ?> Flikata Social App. <?= __('all_rights_reserved', 'All rights reserved.') ?>
         </div>
     </form>
 </div>

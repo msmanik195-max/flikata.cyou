@@ -44,6 +44,33 @@ if (!$storyImage && !$textContent) {
     jsonResponse(false, null, 'Story must contain image or text.');
 }
 
+// Check 24-Hour Story Limit & 0-Disable Rule
+$fsStmt = $pdo->query("SELECT daily_story_limit FROM app_feature_settings WHERE id = 1 LIMIT 1");
+$defaultStoryLimit = $fsStmt ? (int)$fsStmt->fetchColumn() : 15;
+$storyLimit = ($user['custom_story_limit'] !== null && $user['custom_story_limit'] !== '') ? (int)$user['custom_story_limit'] : $defaultStoryLimit;
+
+if ($storyLimit === 0) {
+    try {
+        $nStmt = $pdo->prepare("INSERT INTO notifications (user_id, from_user_id, title, message, type, is_read, created_at) VALUES (?, NULL, 'স্টোরি সংক্রান্ত নোটিশ', 'স্টোরি দেওয়া সাময়িকভাবে বন্ধ আছে', 'system', 0, NOW())");
+        $nStmt->execute([$user['id']]);
+    } catch (Exception $e) {}
+
+    jsonResponse(false, null, 'স্টোরি দেওয়া সাময়িকভাবে বন্ধ আছে');
+}
+
+try {
+    $cStmt = $pdo->prepare("SELECT COUNT(*) FROM stories WHERE user_id = ? AND created_at >= NOW() - INTERVAL 1 DAY");
+    $cStmt->execute([$user['id']]);
+    $recentStories = (int)$cStmt->fetchColumn();
+
+    if ($recentStories >= $storyLimit) {
+        $nStmt = $pdo->prepare("INSERT INTO notifications (user_id, from_user_id, title, message, type, is_read, created_at) VALUES (?, NULL, 'দৈনিক লিমিট শেষ', 'আপনার আজকের স্টোরি পোস্ট করার সীমা শেষ হয়েছে। আগামী ২৪ ঘণ্টা পর আবার স্টোরি দিতে পারবেন।', 'alert', 0, NOW())");
+        $nStmt->execute([$user['id']]);
+
+        jsonResponse(false, null, 'আপনার আজকের স্টোরি পোস্ট করার সীমা শেষ হয়েছে।');
+    }
+} catch (Exception $e) {}
+
 // Fetch configured expiry duration in hours
 $expiryHours = 24;
 try {

@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Work
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
@@ -86,6 +87,7 @@ fun EditProfileScreen(
     val editProfilePic by viewModel.editProfilePic.collectAsState()
     val editCoverPic by viewModel.editCoverPic.collectAsState()
     val editOccupation by viewModel.editOccupation.collectAsState()
+    val editEducation by viewModel.editEducation.collectAsState()
     val editGender by viewModel.editGender.collectAsState()
     val editDob by viewModel.editDob.collectAsState()
     val editEmail by viewModel.editEmail.collectAsState()
@@ -93,6 +95,16 @@ fun EditProfileScreen(
     val editLocation by viewModel.editLocation.collectAsState()
     val editWebsite by viewModel.editWebsite.collectAsState()
     val editNid by viewModel.editNid.collectAsState()
+
+    // About Section Display Toggles
+    val showPhoneInAbout by viewModel.showPhoneInAbout.collectAsState()
+    val showEmailInAbout by viewModel.showEmailInAbout.collectAsState()
+    val showBirthdayInAbout by viewModel.showBirthdayInAbout.collectAsState()
+    val showGenderInAbout by viewModel.showGenderInAbout.collectAsState()
+    val showLocationInAbout by viewModel.showLocationInAbout.collectAsState()
+    val showOccupationInAbout by viewModel.showOccupationInAbout.collectAsState()
+    val showEducationInAbout by viewModel.showEducationInAbout.collectAsState()
+    val showWebsiteInAbout by viewModel.showWebsiteInAbout.collectAsState()
 
     // Privacy Toggles matching Screenshot 1
     val hideUsername by viewModel.hideUsername.collectAsState()
@@ -625,13 +637,14 @@ fun EditProfileScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 8. Privacy Settings Section matching Screenshot 1
-            SectionHeader("Privacy Settings")
+            // 8. About Section Display Toggles (Per user request)
+            SectionHeader("About Section Display Toggles")
             Text(
-                text = "Hide from other users",
-                fontSize = 13.sp,
+                text = "Turn ON the toggles below to show these details on your profile About cards. Other users will only see the details you turn ON and fill in.",
+                fontSize = 12.5.sp,
                 color = FlikataTextSecondary,
-                modifier = Modifier.padding(bottom = 8.dp)
+                lineHeight = 17.sp,
+                modifier = Modifier.padding(bottom = 10.dp)
             )
 
             Surface(
@@ -641,46 +654,52 @@ fun EditProfileScreen(
             ) {
                 Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
                     PrivacyToggleRow(
-                        label = "Username",
-                        icon = Icons.Default.Person,
-                        checked = hideUsername,
-                        onCheckedChange = { viewModel.hideUsername.value = it }
-                    )
-                    PrivacyToggleRow(
-                        label = "Phone Number",
+                        label = "Show Phone Number",
                         icon = Icons.Default.Phone,
-                        checked = hidePhone,
-                        onCheckedChange = { viewModel.hidePhone.value = it }
+                        checked = showPhoneInAbout,
+                        onCheckedChange = { viewModel.setAboutToggle("show_phone", it) }
                     )
                     PrivacyToggleRow(
-                        label = "Email",
+                        label = "Show Email Address",
                         icon = Icons.Default.Email,
-                        checked = hideEmail,
-                        onCheckedChange = { viewModel.hideEmail.value = it }
+                        checked = showEmailInAbout,
+                        onCheckedChange = { viewModel.setAboutToggle("show_email", it) }
                     )
                     PrivacyToggleRow(
-                        label = "Birthday",
+                        label = "Show Birthday (DOB)",
                         icon = Icons.Default.Cake,
-                        checked = hideBirthday,
-                        onCheckedChange = { viewModel.hideBirthday.value = it }
+                        checked = showBirthdayInAbout,
+                        onCheckedChange = { viewModel.setAboutToggle("show_dob", it) }
                     )
                     PrivacyToggleRow(
-                        label = "Age",
-                        icon = Icons.Default.Badge,
-                        checked = hideAge,
-                        onCheckedChange = { viewModel.hideAge.value = it }
-                    )
-                    PrivacyToggleRow(
-                        label = "Gender",
+                        label = "Show Gender",
                         icon = Icons.Default.Person,
-                        checked = hideGender,
-                        onCheckedChange = { viewModel.hideGender.value = it }
+                        checked = showGenderInAbout,
+                        onCheckedChange = { viewModel.setAboutToggle("show_gender", it) }
                     )
                     PrivacyToggleRow(
-                        label = "Location",
+                        label = "Show Location / City",
                         icon = Icons.Default.LocationOn,
-                        checked = hideLocation,
-                        onCheckedChange = { viewModel.hideLocation.value = it },
+                        checked = showLocationInAbout,
+                        onCheckedChange = { viewModel.setAboutToggle("show_location", it) }
+                    )
+                    PrivacyToggleRow(
+                        label = "Show Work / Occupation",
+                        icon = Icons.Default.Work,
+                        checked = showOccupationInAbout,
+                        onCheckedChange = { viewModel.setAboutToggle("show_occupation", it) }
+                    )
+                    PrivacyToggleRow(
+                        label = "Show Education",
+                        icon = Icons.Default.School,
+                        checked = showEducationInAbout,
+                        onCheckedChange = { viewModel.setAboutToggle("show_education", it) }
+                    )
+                    PrivacyToggleRow(
+                        label = "Show Website",
+                        icon = Icons.Default.Link,
+                        checked = showWebsiteInAbout,
+                        onCheckedChange = { viewModel.setAboutToggle("show_website", it) },
                         showDivider = false
                     )
                 }

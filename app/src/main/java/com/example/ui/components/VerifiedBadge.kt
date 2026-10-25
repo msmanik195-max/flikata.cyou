@@ -13,7 +13,7 @@ import androidx.compose.ui.unit.dp
 import com.example.R
 
 /**
- * Authentic Facebook-style Blue Verification Rosette Badge ("কাটা কাটা ব্লু ব্যাচ")
+ * Authentic Facebook-style Blue Verification Rosette Badge (Scalloped Starburst Rosette)
  * Exactly replicates the Facebook / Meta 16-point scalloped starburst rosette with centered checkmark.
  */
 @Composable

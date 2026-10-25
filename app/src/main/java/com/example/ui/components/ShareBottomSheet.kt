@@ -79,12 +79,7 @@ fun ShareBottomSheet(
     val previewMedia = reel?.mediaUrl ?: post?.videoUrl ?: post?.imageUrl
 
     // Live share URL that opens in App if installed or shows preview in browser
-    val cleanTargetId = targetId.removePrefix("post_")
-    val shareUrl = if (isVideo || reel != null) {
-        "https://flikata.cyou/backend/post.php?reel_id=$cleanTargetId"
-    } else {
-        "https://flikata.cyou/backend/post.php?id=$cleanTargetId"
-    }
+    val shareUrl = com.example.data.remote.SecureConfig.getPostShareUrl(targetId, isVideo || reel != null)
 
     val shareText = if (previewText.isNotBlank()) {
         "$authorName on Flikata: \"$previewText\"\n$shareUrl"

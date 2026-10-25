@@ -12,6 +12,15 @@ $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
 $user = getAuthUser($pdo);
 $myId = $user ? (int)$user['id'] : (!empty($input['sender_id']) ? (int)$input['sender_id'] : (!empty($input['user_id']) ? (int)$input['user_id'] : 0));
 
+// Check Admin App Toggle: allow_chat
+try {
+    $fsStmt = $pdo->query("SELECT allow_chat FROM app_feature_settings WHERE id = 1");
+    $allowChat = $fsStmt ? $fsStmt->fetchColumn() : 1;
+    if ($allowChat !== false && (int)$allowChat === 0) {
+        jsonResponse(false, null, 'চ্যাট অপশন সাময়িকভাবে বন্ধ আছে');
+    }
+} catch (Exception $e) {}
+
 if (!$myId) {
     jsonResponse(false, null, 'Authentication or valid sender ID required.');
 }

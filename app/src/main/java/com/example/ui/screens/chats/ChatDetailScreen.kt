@@ -7,6 +7,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -149,6 +151,7 @@ fun ChatDetailScreen(
 ) {
     val currentUser by viewModel.currentUser.collectAsState()
     val chat by viewModel.selectedChat.collectAsState()
+    val activeMarketplaceProduct by viewModel.activeMarketplaceInquiryProduct.collectAsState()
 
     val rawPartnerId = (chat?.senderId?.takeIf { it.isNotBlank() && it != "partner" } ?: chat?.id)
         ?.removePrefix("user_")?.removePrefix("partner_")?.trim() ?: "1"
@@ -192,7 +195,7 @@ fun ChatDetailScreen(
                 )
             }
         } else {
-            Toast.makeText(context, "মাইক্রোফোন পারমিশন ছাড়া অডিও কল করা সম্ভব নয়", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Microphone permission is required to make audio calls", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -211,6 +214,17 @@ fun ChatDetailScreen(
                     text = initialMsg,
                     isMe = false,
                     time = chat?.timestamp ?: "Just now"
+                )
+            )
+        }
+        val inqProd = viewModel.activeMarketplaceInquiryProduct.value
+        if (inqProd != null && messages.isEmpty()) {
+            messages.add(
+                DetailMessage(
+                    id = "inquiry_${inqProd.id}",
+                    text = "Hi $partnerName, is this item still available? [${inqProd.title} - ${inqProd.formattedPrice}]",
+                    isMe = true,
+                    time = "Just now"
                 )
             )
         }
@@ -490,6 +504,89 @@ fun ChatDetailScreen(
                 )
                 .imePadding()
         ) {
+            // Marketplace Product Inquiry Top Banner
+            if (activeMarketplaceProduct != null) {
+                val prod = activeMarketplaceProduct!!
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .shadow(2.dp, RoundedCornerShape(14.dp), ambientColor = SoftUITheme.ShadowDark)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (isDark) Color(0xFF242730) else Color.White)
+                        .border(
+                            1.dp,
+                            if (isDark) Color(0x33FFFFFF) else Color(0x33A0C0E8),
+                            RoundedCornerShape(14.dp)
+                        )
+                        .padding(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Product Thumbnail
+                        Box(
+                            modifier = Modifier
+                                .size(50.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isDark) Color(0xFF1E2128) else Color(0xFFF1F5F9))
+                        ) {
+                            if (!prod.imageUrl.isNullOrBlank()) {
+                                AsyncImage(
+                                    model = prod.imageUrl,
+                                    contentDescription = prod.title,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(10.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Marketplace Inquiry",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF0075FF)
+                            )
+                            Text(
+                                text = prod.title,
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = SoftUITheme.TextDark,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "${prod.formattedPrice} · ${prod.location}",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF0075FF)
+                            )
+                        }
+
+                        // Close button to dismiss banner
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(if (isDark) Color(0xFF333842) else Color(0xFFF0F4F8))
+                                .clickable { viewModel.activeMarketplaceInquiryProduct.value = null },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = "Close",
+                                tint = SoftUITheme.TextSecondary,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
             // Messages List
             LazyColumn(
                 state = listState,

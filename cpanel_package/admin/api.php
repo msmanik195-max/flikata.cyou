@@ -196,6 +196,48 @@ switch ($action) {
         }
         break;
 
+    case 'update_user_limits':
+        $userId = (int)($_POST['user_id'] ?? 0);
+        if ($userId <= 0) {
+            echo json_encode(['success' => false, 'message' => 'Invalid user ID.']);
+            exit;
+        }
+
+        // null means inherit default, 0 means blocked, positive int means custom limit
+        $customPageLimit  = (isset($_POST['custom_page_limit']) && $_POST['custom_page_limit'] !== '' && $_POST['custom_page_limit'] !== '-1') ? max(0, (int)$_POST['custom_page_limit']) : null;
+        $customTextLimit  = (isset($_POST['custom_text_limit']) && $_POST['custom_text_limit'] !== '' && $_POST['custom_text_limit'] !== '-1') ? max(0, (int)$_POST['custom_text_limit']) : null;
+        $customImageLimit = (isset($_POST['custom_image_limit']) && $_POST['custom_image_limit'] !== '' && $_POST['custom_image_limit'] !== '-1') ? max(0, (int)$_POST['custom_image_limit']) : null;
+        $customVideoLimit = (isset($_POST['custom_video_limit']) && $_POST['custom_video_limit'] !== '' && $_POST['custom_video_limit'] !== '-1') ? max(0, (int)$_POST['custom_video_limit']) : null;
+        $customStoryLimit = (isset($_POST['custom_story_limit']) && $_POST['custom_story_limit'] !== '' && $_POST['custom_story_limit'] !== '-1') ? max(0, (int)$_POST['custom_story_limit']) : null;
+
+        try {
+            $up = $pdo->prepare("
+                UPDATE users 
+                SET custom_page_limit = ?,
+                    custom_text_limit = ?,
+                    custom_image_limit = ?,
+                    custom_video_limit = ?,
+                    custom_story_limit = ?
+                WHERE id = ?
+            ");
+            $up->execute([$customPageLimit, $customTextLimit, $customImageLimit, $customVideoLimit, $customStoryLimit, $userId]);
+
+            echo json_encode(['success' => true, 'message' => 'ইউজারের কাস্টম লিমিট সফলভাবে সংরক্ষণ করা হয়েছে।']);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'message' => 'Update failed: ' . $e->getMessage()]);
+        }
+        break;
+
+    case 'save_users_per_page':
+        $perPage = max(1, min(1000, (int)($_POST['per_page'] ?? 20)));
+        try {
+            $pdo->prepare("UPDATE app_feature_settings SET users_per_page = ? WHERE id = 1")->execute([$perPage]);
+            echo json_encode(['success' => true, 'message' => 'প্রতি পেজে ইউজার সংখ্যা সফলভাবে সেভ করা হয়েছে!', 'per_page' => $perPage]);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'message' => 'Failed to save: ' . $e->getMessage()]);
+        }
+        break;
+
     default:
         echo json_encode(['success' => false, 'message' => 'Invalid action request.']);
         break;

@@ -384,35 +384,35 @@ try {
             <i class="bi bi-shield-lock-fill"></i>
         </div>
         <div>
-            <h6 class="mb-0 fw-bold" style="font-size: 1.1rem; color: #0f172a; letter-spacing: -0.02em;">Flikata Admin</h6>
-            <small class="text-muted fw-semibold" style="font-size: 0.75rem;">Control Panel • Light</small>
+            <h6 class="mb-0 fw-bold" style="font-size: 1.1rem; color: #0f172a; letter-spacing: -0.02em;"><?= __('app_name', 'Flikata Admin') ?></h6>
+            <small class="text-muted fw-semibold" style="font-size: 0.75rem;"><?= __('control_panel', 'Control Panel • Light') ?></small>
         </div>
     </div>
 
     <div class="sidebar-nav">
-        <div class="nav-label">মেইন মেনু (Main Menu)</div>
+        <div class="nav-label"><?= __('main_menu', 'Main Menu') ?></div>
         <a href="index.php" class="sidebar-link <?= $currentPage === 'index.php' ? 'active' : '' ?>">
             <i class="bi bi-grid-fill"></i>
-            <span>ড্যাশবোর্ড (Dashboard)</span>
+            <span><?= __('dashboard', 'Dashboard') ?></span>
         </a>
         <a href="users.php" class="sidebar-link <?= $currentPage === 'users.php' ? 'active' : '' ?>">
             <i class="bi bi-people-fill"></i>
-            <span>ইউজার ম্যানেজমেন্ট</span>
+            <span><?= __('users', 'User Management') ?></span>
         </a>
         <a href="posts.php" class="sidebar-link <?= $currentPage === 'posts.php' ? 'active' : '' ?>">
             <i class="bi bi-collection-play-fill"></i>
-            <span>পোস্টসমূহ (Posts)</span>
+            <span><?= __('posts', 'Posts') ?></span>
         </a>
 
-        <div class="nav-label mt-3">ভেরিফিকেশন ও ওয়ালেট</div>
+        <div class="nav-label mt-3"><?= __('verification_wallet', 'Verification & Wallet') ?></div>
         <a href="verification_packages.php" class="sidebar-link <?= $currentPage === 'verification_packages.php' ? 'active' : '' ?>">
             <i class="bi bi-patch-check-fill text-primary"></i>
-            <span>ভেরিফিকেশন ব্যাচ</span>
+            <span><?= __('verification_packages', 'Verification Packages') ?></span>
         </a>
         <a href="verification_requests.php" class="sidebar-link <?= $currentPage === 'verification_requests.php' ? 'active' : '' ?> d-flex justify-content-between align-items-center">
             <div class="d-flex align-items-center gap-2">
                 <i class="bi bi-person-check-fill text-info"></i>
-                <span>ভেরিফিকেশন রিকোয়েস্ট</span>
+                <span><?= __('verification_requests', 'Verification Requests') ?></span>
             </div>
             <?php if ($pendingVerifCount > 0): ?>
                 <span class="badge bg-warning text-dark rounded-pill ms-auto"><?= $pendingVerifCount ?></span>
@@ -420,12 +420,12 @@ try {
         </a>
         <a href="deposit_methods.php" class="sidebar-link <?= $currentPage === 'deposit_methods.php' ? 'active' : '' ?>">
             <i class="bi bi-wallet2 text-success"></i>
-            <span>ডিপোজিট মেথড</span>
+            <span><?= __('deposit_methods', 'Deposit Methods') ?></span>
         </a>
         <a href="deposit_requests.php" class="sidebar-link <?= $currentPage === 'deposit_requests.php' ? 'active' : '' ?> d-flex justify-content-between align-items-center">
             <div class="d-flex align-items-center gap-2">
                 <i class="bi bi-cash-stack text-success"></i>
-                <span>ডিপোজিট রিকোয়েস্ট</span>
+                <span><?= __('deposit_requests', 'Deposit Requests') ?></span>
             </div>
             <?php if ($pendingDepositCount > 0): ?>
                 <span class="badge bg-success text-white rounded-pill ms-auto"><?= $pendingDepositCount ?></span>
@@ -433,28 +433,40 @@ try {
         </a>
         <a href="withdraw_methods.php" class="sidebar-link <?= $currentPage === 'withdraw_methods.php' ? 'active' : '' ?>">
             <i class="bi bi-credit-card-2-front-fill text-warning"></i>
-            <span>উইথড্র মেথড</span>
+            <span><?= __('withdraw_methods', 'Withdraw Methods') ?></span>
         </a>
         <a href="withdraw_requests.php" class="sidebar-link <?= $currentPage === 'withdraw_requests.php' ? 'active' : '' ?> d-flex justify-content-between align-items-center">
             <div class="d-flex align-items-center gap-2">
                 <i class="bi bi-arrow-up-right-circle-fill text-warning"></i>
-                <span>উইথড্র রিকোয়েস্ট</span>
+                <span><?= __('withdraw_requests', 'Withdraw Requests') ?></span>
             </div>
             <?php if ($pendingWithdrawCount > 0): ?>
                 <span class="badge bg-warning text-dark rounded-pill ms-auto"><?= $pendingWithdrawCount ?></span>
             <?php endif; ?>
         </a>
 
-        <div class="nav-label mt-3">কমিউনিকেশন ও নোটিশ</div>
+        <div class="nav-label mt-3"><?= __('communication_notices', 'Communication & Notices') ?></div>
         <a href="notifications.php" class="sidebar-link <?= $currentPage === 'notifications.php' ? 'active' : '' ?>">
             <i class="bi bi-bell-fill"></i>
-            <span>পেজ নোটিফিকেশন</span>
+            <span><?= __('page_notifications', 'Page Notifications') ?></span>
         </a>
 
-        <div class="nav-label mt-3">সিস্টেম ও সেটিংস</div>
+        <div class="nav-label mt-3"><?= __('system_settings', 'System & Cloud') ?></div>
+        <a href="feature_controls.php" class="sidebar-link <?= $currentPage === 'feature_controls.php' ? 'active' : '' ?>">
+            <i class="bi bi-toggles2 text-success"></i>
+            <span><?= __('feature_controls', 'অ্যাপ ফিচার কন্ট্রোল') ?></span>
+        </a>
+        <a href="cloudflare.php" class="sidebar-link <?= $currentPage === 'cloudflare.php' ? 'active' : '' ?>">
+            <i class="bi bi-clouds-fill text-info"></i>
+            <span><?= __('cloudflare_r2', 'Cloudflare R2 Storage') ?></span>
+        </a>
+        <a href="app_update.php" class="sidebar-link <?= $currentPage === 'app_update.php' ? 'active' : '' ?>">
+            <i class="bi bi-cloud-arrow-up-fill text-primary"></i>
+            <span><?= __('app_update', 'App Update') ?></span>
+        </a>
         <a href="settings.php" class="sidebar-link <?= $currentPage === 'settings.php' ? 'active' : '' ?>">
             <i class="bi bi-sliders"></i>
-            <span>এডমিন সেটিংস</span>
+            <span><?= __('admin_settings', 'Admin Settings') ?></span>
         </a>
     </div>
 
@@ -469,7 +481,7 @@ try {
                     <small class="text-muted" style="font-size: 0.725rem;"><?= htmlspecialchars($adminEmail) ?></small>
                 </div>
             </div>
-            <a href="logout.php" class="btn btn-sm btn-outline-danger border-0 rounded-circle p-2" title="লগআউট" onclick="return confirm('আপনি কি নিশ্চিত লগআউট করতে চান?');">
+            <a href="logout.php" class="btn btn-sm btn-outline-danger border-0 rounded-circle p-2" title="<?= __('logout', 'Logout') ?>" onclick="return confirm('<?= __('confirm_logout', 'Are you sure you want to log out?') ?>');">
                 <i class="bi bi-box-arrow-right fs-5"></i>
             </a>
         </div>
@@ -480,31 +492,43 @@ try {
 <header id="topbar">
     <div class="d-flex align-items-center gap-3">
         <!-- 3-Line Hamburger Toggle Button -->
-        <button class="hamburger-btn" id="sidebarToggle" onclick="toggleSidebar()" aria-label="Toggle Navigation Menu" title="মেনু খুলুন/বন্ধ করুন">
+        <button class="hamburger-btn" id="sidebarToggle" onclick="toggleSidebar()" aria-label="Toggle Navigation Menu" title="<?= __('toggle_menu', 'Toggle Menu') ?>">
             <i class="fa-solid fa-bars"></i>
         </button>
         <div>
-            <h5 class="mb-0 fw-bold text-dark" style="font-size: 1.15rem;"><?= $pageHeading ?? 'এডমিন ড্যাশবোর্ড' ?></h5>
-            <small class="text-muted d-none d-sm-inline"><?= $pageSubheading ?? 'Flikata সোশ্যাল অ্যাপ এডমিনিস্ট্রেশন' ?></small>
+            <h5 class="mb-0 fw-bold text-dark" style="font-size: 1.15rem;"><?= $pageHeading ?? __('dashboard_heading', 'Admin Dashboard') ?></h5>
+            <small class="text-muted d-none d-sm-inline"><?= $pageSubheading ?? __('dashboard_subheading', 'Overview & Analytics') ?></small>
         </div>
     </div>
 
-        <!-- Download Latest APK Button -->
-        <a href="flikata_latest.apk" download class="btn btn-sm btn-primary rounded-pill px-3 py-1.5 d-flex align-items-center gap-2 fw-bold text-white shadow-sm" title="লেটেস্ট Android APK ডাউনলোড করুন">
-            <i class="bi bi-android2 fs-6"></i>
-            <span class="d-none d-md-inline">ডাউনলোড APK</span>
-        </a>
-
-        <!-- Download Full Backend & Admin ZIP Button -->
-        <a href="flikata_backend_and_admin_cpanel.zip" download class="btn btn-sm btn-outline-primary rounded-pill px-3 py-1.5 d-flex align-items-center gap-2 fw-bold shadow-sm" title="সম্পূর্ণ ব্যাকএন্ড ও এডমিন প্যানেল জিপ ডাউনলোড করুন">
-            <i class="bi bi-file-earmark-zip-fill fs-6 text-primary"></i>
-            <span class="d-none d-md-inline">ব্যাকএন্ড ZIP</span>
-        </a>
+    <div class="d-flex align-items-center gap-3">
+        <!-- Multi-Language Switcher (বাংলা / English) -->
+        <div class="dropdown">
+            <button class="btn btn-sm btn-outline-primary rounded-pill px-3 py-1.5 d-flex align-items-center gap-2 fw-bold shadow-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-translate fs-6 text-primary"></i>
+                <span><?= $currentLang === 'en' ? 'English (EN)' : 'বাংলা (BN)' ?></span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3 p-2 mt-2">
+                <li><span class="dropdown-header text-muted small"><?= $currentLang === 'en' ? 'Select Language' : 'ভাষা নির্বাচন করুন' ?></span></li>
+                <li>
+                    <a class="dropdown-item rounded-2 d-flex align-items-center justify-content-between py-2 <?= $currentLang === 'bn' ? 'active fw-bold' : '' ?>" href="?set_lang=bn">
+                        <span><i class="bi bi-check2 text-success me-2 <?= $currentLang === 'bn' ? '' : 'invisible' ?>"></i>বাংলা (Bangla)</span>
+                        <span class="badge bg-success-subtle text-success small ms-2">BN</span>
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item rounded-2 d-flex align-items-center justify-content-between py-2 <?= $currentLang === 'en' ? 'active fw-bold' : '' ?>" href="?set_lang=en">
+                        <span><i class="bi bi-check2 text-primary me-2 <?= $currentLang === 'en' ? '' : 'invisible' ?>"></i>English</span>
+                        <span class="badge bg-primary-subtle text-primary small ms-2">EN</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
 
         <!-- Database Status Indicator -->
         <div class="badge rounded-pill bg-success-subtle text-success px-3 py-2 d-flex align-items-center gap-2 fw-semibold border border-success-subtle">
             <span class="spinner-grow spinner-grow-sm text-success" style="width: 8px; height: 8px;" role="status"></span>
-            <span>ডাটাবেজ কানেক্টেড</span>
+            <span><?= __('database_connected', 'Database Connected') ?></span>
         </div>
 
         <!-- Quick Profile & Logout -->
@@ -515,11 +539,11 @@ try {
                 <i class="bi bi-chevron-down fs-7 text-muted"></i>
             </button>
             <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3 p-2 mt-2">
-                <li><span class="dropdown-header text-muted">লগইন করা আছে</span></li>
+                <li><span class="dropdown-header text-muted"><?= __('logged_in_as', 'Logged in as') ?></span></li>
                 <li><span class="dropdown-item-text fw-bold"><?= htmlspecialchars($adminEmail) ?></span></li>
                 <li><hr class="dropdown-divider"></li>
-                <li><a class="dropdown-item rounded-2" href="settings.php"><i class="bi bi-shield-lock me-2 text-primary"></i> পাসওয়ার্ড পরিবর্তন</a></li>
-                <li><a class="dropdown-item rounded-2 text-danger" href="logout.php"><i class="bi bi-box-arrow-right me-2"></i> লগআউট করুন</a></li>
+                <li><a class="dropdown-item rounded-2" href="settings.php"><i class="bi bi-shield-lock me-2 text-primary"></i> <?= __('change_password', 'Change Password') ?></a></li>
+                <li><a class="dropdown-item rounded-2 text-danger" href="logout.php"><i class="bi bi-box-arrow-right me-2"></i> <?= __('logout', 'Log Out') ?></a></li>
             </ul>
         </div>
     </div>

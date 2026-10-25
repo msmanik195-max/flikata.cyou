@@ -1,13 +1,22 @@
 <?php
 /**
  * Cloudflare R2 Storage Management Dashboard
- * Visit this page directly in your browser: https://yourdomain.com/backend/storage.php
+ * Strictly secured: Requires Admin Authentication.
  */
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
-require_once __DIR__ . '/config/db.php';
-require_once __DIR__ . '/r2_helper.php';
+// Strict Admin Authentication Check
+if (empty($_SESSION['admin_logged_in'])) {
+    header("Location: ../admin/login.php");
+    exit;
+}
 
-$pdo = getDB();
+// Redirect authenticated admin to central admin panel's Cloudflare manager
+header("Location: ../cpanel_package/admin/cloudflare.php");
+exit;
+
 
 // Handle AJAX actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

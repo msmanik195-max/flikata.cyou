@@ -616,7 +616,7 @@ fun WalletScreen(
     }
 
     // =========================================================================
-    // 5. TRANSACTION HISTORY MODAL BOTTOM SHEET ("নিচ থেকে মডেল আসবে")
+    // 5. TRANSACTION HISTORY MODAL BOTTOM SHEET
     // =========================================================================
     if (showHistorySheet) {
         ModalBottomSheet(
@@ -801,7 +801,7 @@ fun WalletScreen(
     }
 
     // =========================================================================
-    // 6. REJECTION REASON DIALOG ("কিসের জন্য রিজেক্ট করছে দেখা যাবে")
+    // 6. REJECTION REASON DIALOG
     // =========================================================================
     if (selectedRejectionItem != null) {
         val rejItem = selectedRejectionItem!!
@@ -1132,7 +1132,7 @@ private fun RequestRowCard(
                         )
                     }
 
-                    // Rejection info icon button (user requested: "রিজেক্ট লেখা থাকবে তার পাশে একটা আইকন থাকবে এটাতে ক্লিক করলে দেখা যাবে যে কিসের জন্য রিজেক্ট করেছি")
+                    // Rejection info icon button: tap to view admin rejection reason
                     if (isRejected) {
                         Spacer(modifier = Modifier.width(4.dp))
                         Box(

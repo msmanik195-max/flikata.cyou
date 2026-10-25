@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -35,6 +36,9 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.Payment
 import androidx.compose.material.icons.filled.Refresh
@@ -59,6 +63,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -93,7 +98,9 @@ enum class AdminSection {
     PACKAGES,
     VERIFICATION_REQUESTS,
     DEPOSIT_METHODS,
-    DEPOSIT_REQUESTS
+    DEPOSIT_REQUESTS,
+    PAGE_SETTINGS,
+    LEADERBOARD_SETTINGS
 }
 
 @Composable
@@ -108,6 +115,11 @@ fun AdminPanelScreen(
     val isDark = SoftUITheme.isDark
 
     var currentSection by remember { mutableStateOf(AdminSection.PACKAGES) }
+    val maxPagesPerProfile by viewModel.maxPagesPerProfile.collectAsState()
+    var pageLimitInput by remember(maxPagesPerProfile) { mutableStateOf(maxPagesPerProfile.toString()) }
+
+    val leaderboardLimit by viewModel.leaderboardLimit.collectAsState()
+    var leaderboardLimitInput by remember(leaderboardLimit) { mutableStateOf(leaderboardLimit.toString()) }
 
     // Section 1: Packages & Requirements
     var packages by remember { mutableStateOf<List<VerificationPackage>>(emptyList()) }
@@ -207,6 +219,8 @@ fun AdminPanelScreen(
             AdminSection.VERIFICATION_REQUESTS -> loadVerRequests(verReqTab)
             AdminSection.DEPOSIT_METHODS -> loadDepositMethods()
             AdminSection.DEPOSIT_REQUESTS -> loadDepositRequests(depReqTab)
+            AdminSection.PAGE_SETTINGS -> viewModel.loadPageSettings()
+            AdminSection.LEADERBOARD_SETTINGS -> viewModel.loadLeaderboardSettings()
         }
     }
 
@@ -255,37 +269,44 @@ fun AdminPanelScreen(
                 }
             }
 
-            // Section Switcher Row (4 menus)
+            // Section Switcher Row (Scrollable tabs with clear badges)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(if (isDark) Color(0xFF161920) else Color(0xFFEBF0F8))
-                    .padding(6.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 AdminSectionButton(
                     title = "Badge Pkg",
-                    isSelected = currentSection == AdminSection.PACKAGES,
-                    modifier = Modifier.weight(1f)
+                    isSelected = currentSection == AdminSection.PACKAGES
                 ) { currentSection = AdminSection.PACKAGES }
 
                 AdminSectionButton(
                     title = "Badge Req",
-                    isSelected = currentSection == AdminSection.VERIFICATION_REQUESTS,
-                    modifier = Modifier.weight(1f)
+                    isSelected = currentSection == AdminSection.VERIFICATION_REQUESTS
                 ) { currentSection = AdminSection.VERIFICATION_REQUESTS }
 
                 AdminSectionButton(
                     title = "Deposit Mth",
-                    isSelected = currentSection == AdminSection.DEPOSIT_METHODS,
-                    modifier = Modifier.weight(1f)
+                    isSelected = currentSection == AdminSection.DEPOSIT_METHODS
                 ) { currentSection = AdminSection.DEPOSIT_METHODS }
 
                 AdminSectionButton(
                     title = "Deposit Req",
-                    isSelected = currentSection == AdminSection.DEPOSIT_REQUESTS,
-                    modifier = Modifier.weight(1f)
+                    isSelected = currentSection == AdminSection.DEPOSIT_REQUESTS
                 ) { currentSection = AdminSection.DEPOSIT_REQUESTS }
+
+                AdminSectionButton(
+                    title = "Pages Limit",
+                    isSelected = currentSection == AdminSection.PAGE_SETTINGS
+                ) { currentSection = AdminSection.PAGE_SETTINGS }
+
+                AdminSectionButton(
+                    title = "Leaderboard",
+                    isSelected = currentSection == AdminSection.LEADERBOARD_SETTINGS
+                ) { currentSection = AdminSection.LEADERBOARD_SETTINGS }
             }
 
             // Body Content based on active section
@@ -1032,6 +1053,309 @@ fun AdminPanelScreen(
                                         }
                                     }
                                 }
+                            }
+                        }
+                    }
+                }
+
+                // ==========================================
+                // 5. PAGE SETTINGS (Max Pages per Profile)
+                // ==========================================
+                AdminSection.PAGE_SETTINGS -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .shadow(2.dp, RoundedCornerShape(16.dp))
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(if (isDark) Color(0xFF1E2128) else Color.White)
+                                .padding(16.dp)
+                        ) {
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFFE3F2FD)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Flag,
+                                            contentDescription = null,
+                                            tint = Color(0xFF0075FF),
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text(
+                                            text = "Page Creation Limit Settings",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 17.sp,
+                                            color = SoftUITheme.TextDark
+                                        )
+                                        Text(
+                                            text = "Control maximum pages each user profile can create",
+                                            fontSize = 12.sp,
+                                            color = SoftUITheme.TextSecondary
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(18.dp))
+
+                                Text(
+                                    text = "Maximum Pages Per Profile",
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SoftUITheme.TextDark
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                OutlinedTextField(
+                                    value = pageLimitInput,
+                                    onValueChange = { if (it.all { ch -> ch.isDigit() }) pageLimitInput = it },
+                                    label = { Text("Max Pages (e.g. 5)") },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true
+                                )
+
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = "Quick Presets:",
+                                    fontSize = 12.sp,
+                                    color = SoftUITheme.TextSecondary
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    listOf(2, 3, 5, 10, 20).forEach { preset ->
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(if (pageLimitInput == preset.toString()) Color(0xFF0075FF) else if (isDark) Color(0xFF282C37) else Color(0xFFF1F5F9))
+                                                .clickable { pageLimitInput = preset.toString() }
+                                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                                        ) {
+                                            Text(
+                                                text = "$preset Pages",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = if (pageLimitInput == preset.toString()) Color.White else SoftUITheme.TextDark
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(18.dp))
+
+                                Button(
+                                    onClick = {
+                                        val newLimit = pageLimitInput.toIntOrNull()
+                                        if (newLimit != null && newLimit > 0) {
+                                            viewModel.updateMaxPagesPerProfile(newLimit)
+                                            Toast.makeText(context, "Page limit successfully saved: $newLimit pages per profile!", Toast.LENGTH_LONG).show()
+                                        } else {
+                                            Toast.makeText(context, "Please enter a valid number greater than 0", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0075FF))
+                                ) {
+                                    Icon(imageVector = Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Save Page Limit Setting", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                }
+                            }
+                        }
+
+                        // Info card explaining enforcement
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .shadow(1.dp, RoundedCornerShape(14.dp))
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(if (isDark) Color(0xFF1B2230) else Color(0xFFE8F1FC))
+                                .padding(14.dp)
+                        ) {
+                            Column {
+                                Text(
+                                    text = "How this setting works:",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.5.sp,
+                                    color = Color(0xFF0052D4)
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "• Users see this quota limit when opening Create Page screen.\n• Once a user reaches this count, further page creation is prevented in the application and rejected by backend.\n• You can increase or decrease this limit at any time.",
+                                    fontSize = 12.5.sp,
+                                    lineHeight = 18.sp,
+                                    color = SoftUITheme.TextSecondary
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // ==========================================
+                // 6. LEADERBOARD SETTINGS (লিডার বোর্ড সেটিংস)
+                // ==========================================
+                AdminSection.LEADERBOARD_SETTINGS -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .shadow(2.dp, RoundedCornerShape(16.dp))
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(if (isDark) Color(0xFF1E2128) else Color.White)
+                                .padding(16.dp)
+                        ) {
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(44.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFFFFF3E0)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.EmojiEvents,
+                                            contentDescription = null,
+                                            tint = Color(0xFFFF9800),
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text(
+                                            text = "Leaderboard Settings (লিডার বোর্ড সেটিংস)",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 17.sp,
+                                            color = SoftUITheme.TextDark
+                                        )
+                                        Text(
+                                            text = "Configure maximum top engaged users to display on Leaderboard",
+                                            fontSize = 12.sp,
+                                            color = SoftUITheme.TextSecondary
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(18.dp))
+
+                                Text(
+                                    text = "Total Users to Display (মোট লিডার বোর্ড টপ ইউজার)",
+                                    fontSize = 13.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = SoftUITheme.TextDark
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                OutlinedTextField(
+                                    value = leaderboardLimitInput,
+                                    onValueChange = { if (it.all { ch -> ch.isDigit() }) leaderboardLimitInput = it },
+                                    label = { Text("Display Limit (Default: 20)") },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true
+                                )
+
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = "Quick Presets:",
+                                    fontSize = 12.sp,
+                                    color = SoftUITheme.TextSecondary
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.horizontalScroll(rememberScrollState())
+                                ) {
+                                    listOf(10, 20, 30, 50, 100).forEach { preset ->
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(
+                                                    if (leaderboardLimitInput == preset.toString()) Color(0xFFFF9800)
+                                                    else if (isDark) Color(0xFF282C37)
+                                                    else Color(0xFFF1F5F9)
+                                                )
+                                                .clickable { leaderboardLimitInput = preset.toString() }
+                                                .padding(horizontal = 14.dp, vertical = 8.dp)
+                                        ) {
+                                            Text(
+                                                text = "$preset Users",
+                                                fontSize = 12.5.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = if (leaderboardLimitInput == preset.toString()) Color.White else SoftUITheme.TextDark
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(20.dp))
+
+                                Button(
+                                    onClick = {
+                                        val newLimit = leaderboardLimitInput.toIntOrNull()
+                                        if (newLimit != null && newLimit > 0) {
+                                            viewModel.updateLeaderboardLimit(newLimit)
+                                            Toast.makeText(
+                                                context,
+                                                "Leaderboard limit updated to $newLimit users! (সাথে সাথে পরিবর্তন হবে)",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+                                        } else {
+                                            Toast.makeText(context, "Please enter a valid count greater than 0", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF9800))
+                                ) {
+                                    Icon(imageVector = Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Save Leaderboard Settings", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
+                                }
+                            }
+                        }
+
+                        // Info card explaining real-time leaderboard ranking
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .shadow(1.dp, RoundedCornerShape(14.dp))
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(if (isDark) Color(0xFF25211B) else Color(0xFFFFF8E1))
+                                .padding(14.dp)
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Leaderboard Algorithm & Rules:",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.5.sp,
+                                    color = Color(0xFFE65100)
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "• Rank 1: Gold 👑, Rank 2: Silver 🥈, Rank 3: Bronze/Diamond 🥉.\n• Users ranked by real Engagement: Total Likes, Total Comments, and Total Followers.\n• Default setting is 20 users. Any change here takes effect immediately on the user Leaderboard screen.",
+                                    fontSize = 12.5.sp,
+                                    lineHeight = 18.sp,
+                                    color = SoftUITheme.TextSecondary
+                                )
                             }
                         }
                     }

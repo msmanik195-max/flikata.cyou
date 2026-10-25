@@ -23,16 +23,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PersonOutline
 import androidx.compose.material.icons.filled.Phone
-import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -65,8 +63,9 @@ import java.util.Calendar
 @Composable
 fun RegisterScreen(
     viewModel: MainViewModel,
-    onNavigateBack: () -> Unit
+    onNavigateToLogin: () -> Unit
 ) {
+    androidx.activity.compose.BackHandler { onNavigateToLogin() }
     val context = LocalContext.current
     val firstName by viewModel.regFirstName.collectAsState()
     val lastName by viewModel.regLastName.collectAsState()
@@ -78,9 +77,7 @@ fun RegisterScreen(
     val dobString by viewModel.regDob.collectAsState()
     val authError by viewModel.authError.collectAsState()
     val isLoading by viewModel.authLoading.collectAsState()
-
-    var showServerConfigDialog by remember { mutableStateOf(false) }
-    var currentServerUrl by remember { mutableStateOf(com.example.data.remote.ApiClient.baseUrl) }
+    val isDarkMode by viewModel.isDarkMode.collectAsState()
     val scrollState = rememberScrollState()
 
     // DatePicker setup
@@ -126,22 +123,22 @@ fun RegisterScreen(
                     letterSpacing = (-0.5).sp
                 )
 
-                // Top right soft square action button (Server / Config button)
+                // Top right soft square action button: Dark / Light Mode Toggle
                 SoftNeumorphicCard(
                     modifier = Modifier.size(46.dp),
                     shape = RoundedCornerShape(14.dp),
                     elevation = 5.dp,
-                    backgroundColor = Color(0xFFF1F6FD),
-                    onClick = { showServerConfigDialog = true }
+                    backgroundColor = if (isDarkMode) Color(0xFF1E293B) else Color(0xFFF1F6FD),
+                    onClick = { viewModel.toggleDarkMode() }
                 ) {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Storage,
-                            contentDescription = "Server Setting",
-                            tint = Color(0xFF0070F3),
+                            imageVector = if (isDarkMode) Icons.Default.LightMode else Icons.Default.DarkMode,
+                            contentDescription = if (isDarkMode) "Light Mode" else "Dark Mode",
+                            tint = if (isDarkMode) Color(0xFFFFB800) else Color(0xFF0070F3),
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -493,7 +490,7 @@ fun RegisterScreen(
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF0070F3),
                     modifier = Modifier
-                        .clickable { onNavigateBack() }
+                        .clickable { onNavigateToLogin() }
                         .testTag("reg_goto_login_btn")
                 )
             }
@@ -501,43 +498,5 @@ fun RegisterScreen(
             Spacer(modifier = Modifier.height(36.dp))
         }
 
-        // Server URL Configuration Dialog
-        if (showServerConfigDialog) {
-            AlertDialog(
-                onDismissRequest = { showServerConfigDialog = false },
-                title = { Text("Server URL Settings") },
-                text = {
-                    Column {
-                        Text(
-                            text = "Configure Live PHP / MySQL backend endpoint:",
-                            fontSize = 13.sp,
-                            color = Color.Gray
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = currentServerUrl,
-                            onValueChange = { currentServerUrl = it },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            com.example.data.remote.ApiClient.baseUrl = currentServerUrl
-                            showServerConfigDialog = false
-                        }
-                    ) {
-                        Text("Save", fontWeight = FontWeight.Bold)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showServerConfigDialog = false }) {
-                        Text("Cancel")
-                    }
-                }
-            )
-        }
     }
 }

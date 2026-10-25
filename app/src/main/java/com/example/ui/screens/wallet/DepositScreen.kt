@@ -839,12 +839,7 @@ private fun BrandBadgeBox(bg: Color, text: String, textColor: Color) {
 
 fun resolveMethodImageUrl(url: String?): String? {
     if (url.isNullOrBlank()) return null
-    val trimmed = url.trim()
-    if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-        return trimmed.replace("http://flikata.cyou", "https://flikata.cyou")
-    }
-    val baseDomain = "https://flikata.cyou"
-    return if (trimmed.startsWith("/")) "$baseDomain$trimmed" else "$baseDomain/$trimmed"
+    return com.example.data.remote.SecureConfig.normalizeUrl(url)
 }
 
 @Composable

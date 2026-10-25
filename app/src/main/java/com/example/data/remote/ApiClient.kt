@@ -14,14 +14,14 @@ import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 
 object ApiClient {
-    var baseUrl: String = "https://flikata.cyou/backend/"
+    var baseUrl: String = SecureConfig.baseUrl
         set(value) {
             field = if (value.endsWith("/")) value else "$value/"
             _apiService = createRetrofit(field).create(FlikataApiService::class.java)
         }
 
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
-        level = HttpLoggingInterceptor.Level.HEADERS
+        level = HttpLoggingInterceptor.Level.NONE
     }
 
     private val trustAllCerts = arrayOf<TrustManager>(

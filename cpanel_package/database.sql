@@ -22,6 +22,9 @@ CREATE TABLE IF NOT EXISTS `users` (
   `is_verified` TINYINT(1) DEFAULT 0,
   `verified_until` DATETIME DEFAULT NULL,
   `wallet_balance` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `is_monetized` TINYINT(1) DEFAULT 0,
+  `followers_count` INT NOT NULL DEFAULT 0,
+  `following_count` INT NOT NULL DEFAULT 0,
   `is_banned` TINYINT(1) DEFAULT 0,
   `is_online` TINYINT(1) DEFAULT 1,
   `auth_token` VARCHAR(255) DEFAULT NULL,
@@ -29,6 +32,17 @@ CREATE TABLE IF NOT EXISTS `users` (
   `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY `idx_email` (`email`),
   UNIQUE KEY `idx_phone` (`phone`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 1.1 Follows Table (Followers and Following)
+CREATE TABLE IF NOT EXISTS `follows` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `follower_id` INT NOT NULL,
+  `following_id` INT NOT NULL,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `idx_follow_unique` (`follower_id`, `following_id`),
+  FOREIGN KEY (`follower_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`following_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 2. Cloudflare R2 Buckets Management Table
@@ -52,6 +66,7 @@ CREATE TABLE IF NOT EXISTS `r2_buckets` (
 CREATE TABLE IF NOT EXISTS `posts` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `user_id` INT NOT NULL,
+  `page_id` INT DEFAULT NULL,
   `content` TEXT DEFAULT NULL,
   `image_url` VARCHAR(500) DEFAULT NULL,
   `video_url` VARCHAR(500) DEFAULT NULL,
@@ -61,8 +76,10 @@ CREATE TABLE IF NOT EXISTS `posts` (
   `likes_count` INT DEFAULT 0,
   `comments_count` INT DEFAULT 0,
   `shares_count` INT DEFAULT 0,
+  `views_count` INT NOT NULL DEFAULT 0,
   `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
   `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX (`page_id`),
   FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -393,6 +410,181 @@ CREATE TABLE IF NOT EXISTS `withdraw_requests` (
   INDEX (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- 27. Reel Views Table (Unique views, prevent self-views)
+CREATE TABLE IF NOT EXISTS `reel_views` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `reel_id` INT NOT NULL,
+  `user_id` INT NOT NULL,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `idx_reel_user_view` (`reel_id`, `user_id`),
+  INDEX (`reel_id`),
+  INDEX (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 28. Post Views Table (Unique views, prevent self-views)
+CREATE TABLE IF NOT EXISTS `post_views` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `post_id` INT NOT NULL,
+  `user_id` INT NOT NULL,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `idx_post_user_view` (`post_id`, `user_id`),
+  INDEX (`post_id`),
+  INDEX (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 29. Monetization Settings Table
+CREATE TABLE IF NOT EXISTS `monetization_settings` (
+  `id` INT PRIMARY KEY DEFAULT 1,
+  `min_followers` INT DEFAULT 1000,
+  `min_posts` INT DEFAULT 10,
+  `min_reels` INT DEFAULT 5,
+  `min_account_age_days` INT DEFAULT 30,
+  `dashboard_posts_limit` INT DEFAULT 5,
+  `revenue_share_percent` INT DEFAULT 55,
+  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO `monetization_settings` (`id`, `min_followers`, `min_posts`, `min_reels`, `min_account_age_days`, `dashboard_posts_limit`, `revenue_share_percent`) 
+VALUES (1, 1000, 10, 5, 30, 5, 55);
+
+-- 30. Monetization Applications Table
+CREATE TABLE IF NOT EXISTS `monetization_requests` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT NOT NULL,
+  `followers_count` INT DEFAULT 0,
+  `posts_count` INT DEFAULT 0,
+  `reels_count` INT DEFAULT 0,
+  `account_age_days` INT DEFAULT 0,
+  `status` ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+  `rejection_reason` TEXT DEFAULT NULL,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX (`user_id`),
+  INDEX (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 31. Marketplace Products Table
+CREATE TABLE IF NOT EXISTS `marketplace_products` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT NOT NULL,
+  `title` VARCHAR(255) NOT NULL,
+  `price` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+  `currency` VARCHAR(10) NOT NULL DEFAULT 'BDT',
+  `category` VARCHAR(100) NOT NULL DEFAULT 'General',
+  `condition_state` VARCHAR(50) NOT NULL DEFAULT 'New',
+  `location` VARCHAR(150) NOT NULL DEFAULT 'Dhaka, Bangladesh',
+  `description` TEXT DEFAULT NULL,
+  `image_url` TEXT DEFAULT NULL,
+  `is_sold` TINYINT(1) DEFAULT 0,
+  `views_count` INT DEFAULT 0,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX (`user_id`),
+  INDEX (`category`),
+  INDEX (`is_sold`),
+  FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 32. Pages Table
+CREATE TABLE IF NOT EXISTS `pages` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT NOT NULL,
+  `name` VARCHAR(150) NOT NULL,
+  `category` VARCHAR(100) DEFAULT 'Digital Creator',
+  `bio` TEXT DEFAULT NULL,
+  `logo_url` TEXT DEFAULT NULL,
+  `banner_url` TEXT DEFAULT NULL,
+  `email` VARCHAR(150) DEFAULT NULL,
+  `phone` VARCHAR(50) DEFAULT NULL,
+  `website` VARCHAR(255) DEFAULT NULL,
+  `followers_count` INT DEFAULT 1,
+  `likes_count` INT DEFAULT 1,
+  `is_verified` TINYINT(1) DEFAULT 0,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX (`user_id`),
+  INDEX (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 33. Page Settings Table
+CREATE TABLE IF NOT EXISTS `page_settings` (
+  `id` INT PRIMARY KEY DEFAULT 1,
+  `max_pages_per_user` INT NOT NULL DEFAULT 5,
+  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO `page_settings` (`id`, `max_pages_per_user`)
+VALUES (1, 5)
+ON DUPLICATE KEY UPDATE `id` = 1;
+
 SET FOREIGN_KEY_CHECKS = 1;
 
+
+
+-- --------------------------------------------------------
+-- Table structure for table `app_updates`
+-- --------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS `app_updates` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `version_code` INT NOT NULL,
+  `version_name` VARCHAR(50) NOT NULL,
+  `apk_url` VARCHAR(1000) NOT NULL,
+  `apk_size_mb` VARCHAR(50) DEFAULT '30 MB',
+  `release_notes` TEXT DEFAULT NULL,
+  `is_force_update` TINYINT(1) DEFAULT 1,
+  `is_active` TINYINT(1) DEFAULT 1,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX (`version_code`),
+  INDEX (`is_active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO `app_updates` (`id`, `version_code`, `version_name`, `apk_url`, `apk_size_mb`, `release_notes`, `is_force_update`, `is_active`)
+VALUES (1, 14, 'v7.0', 'https://flikata.cyou/apk/flikata_v7.apk', '32 MB', '1. In-App Updates auto-detection\n2. Light/Dark mode header toggle\n3. Smooth reels and views sync', 0, 1)
+ON DUPLICATE KEY UPDATE `version_code` = VALUES(`version_code`);
+
+-- --------------------------------------------------------
+-- Table structure for table `storage_buckets`
+-- --------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS `storage_buckets` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `bucket_name` VARCHAR(100) NOT NULL,
+  `account_id` VARCHAR(100) NOT NULL,
+  `access_key_id` VARCHAR(150) NOT NULL,
+  `secret_access_key` VARCHAR(255) NOT NULL,
+  `public_domain` VARCHAR(255) DEFAULT '',
+  `endpoint_url` VARCHAR(255) DEFAULT '',
+  `storage_limit_gb` INT DEFAULT 10,
+  `used_bytes` BIGINT DEFAULT 0,
+  `is_active` TINYINT(1) DEFAULT 1,
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+-- Table structure for table `app_feature_settings`
+-- --------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS `app_feature_settings` (
+  `id` INT PRIMARY KEY DEFAULT 1,
+  `allow_page_creation` TINYINT(1) NOT NULL DEFAULT 1,
+  `allow_login` TINYINT(1) NOT NULL DEFAULT 1,
+  `allow_registration` TINYINT(1) NOT NULL DEFAULT 1,
+  `allow_chat` TINYINT(1) NOT NULL DEFAULT 1,
+  `feed_show_text_posts` TINYINT(1) NOT NULL DEFAULT 1,
+  `feed_show_image_posts` TINYINT(1) NOT NULL DEFAULT 1,
+  `feed_show_video_posts` TINYINT(1) NOT NULL DEFAULT 1,
+  `daily_text_limit` INT NOT NULL DEFAULT 30,
+  `daily_image_limit` INT NOT NULL DEFAULT 20,
+  `daily_video_limit` INT NOT NULL DEFAULT 10,
+  `daily_story_limit` INT NOT NULL DEFAULT 15,
+  `default_page_create_limit` INT NOT NULL DEFAULT 5,
+  `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO `app_feature_settings` (`id`, `allow_page_creation`, `allow_login`, `allow_registration`, `allow_chat`, `feed_show_text_posts`, `feed_show_image_posts`, `feed_show_video_posts`, `daily_text_limit`, `daily_image_limit`, `daily_video_limit`, `daily_story_limit`, `default_page_create_limit`)
+VALUES (1, 1, 1, 1, 1, 1, 1, 1, 30, 20, 10, 15, 5)
+ON DUPLICATE KEY UPDATE `id` = 1;
 

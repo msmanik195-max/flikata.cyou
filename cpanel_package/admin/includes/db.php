@@ -206,12 +206,97 @@ try {
       INDEX (`user_id`),
       INDEX (`status`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+    // Real Video/Reel & Post Views (Unique views, prevent self-views)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `reel_views` (
+      `id` INT AUTO_INCREMENT PRIMARY KEY,
+      `reel_id` INT NOT NULL,
+      `user_id` INT NOT NULL,
+      `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY `idx_reel_user_view` (`reel_id`, `user_id`),
+      INDEX (`reel_id`),
+      INDEX (`user_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `post_views` (
+      `id` INT AUTO_INCREMENT PRIMARY KEY,
+      `post_id` INT NOT NULL,
+      `user_id` INT NOT NULL,
+      `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE KEY `idx_post_user_view` (`post_id`, `user_id`),
+      INDEX (`post_id`),
+      INDEX (`user_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+    // Monetization System Settings (Configurable from Admin Settings)
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `monetization_settings` (
+      `id` INT PRIMARY KEY DEFAULT 1,
+      `min_followers` INT DEFAULT 1000,
+      `min_posts` INT DEFAULT 10,
+      `min_reels` INT DEFAULT 5,
+      `min_account_age_days` INT DEFAULT 30,
+      `dashboard_posts_limit` INT DEFAULT 5,
+      `revenue_share_percent` INT DEFAULT 55,
+      `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+    $pdo->exec("INSERT IGNORE INTO `monetization_settings` (`id`, `min_followers`, `min_posts`, `min_reels`, `min_account_age_days`, `dashboard_posts_limit`, `revenue_share_percent`) VALUES (1, 1000, 10, 5, 30, 5, 55)");
+
+    // Monetization Applications / Requests
+    $pdo->exec("CREATE TABLE IF NOT EXISTS `monetization_requests` (
+      `id` INT AUTO_INCREMENT PRIMARY KEY,
+      `user_id` INT NOT NULL,
+      `followers_count` INT DEFAULT 0,
+      `posts_count` INT DEFAULT 0,
+      `reels_count` INT DEFAULT 0,
+      `account_age_days` INT DEFAULT 0,
+      `status` ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+      `rejection_reason` TEXT DEFAULT NULL,
+      `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+      `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX (`user_id`),
+      INDEX (`status`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+    try { $pdo->exec("ALTER TABLE `users` ADD COLUMN `is_monetized` TINYINT(1) DEFAULT 0"); } catch(Exception $e) {}
+    try { $pdo->exec("ALTER TABLE `users` ADD COLUMN `followers_count` INT NOT NULL DEFAULT 0"); } catch(Exception $e) {}
+    try { $pdo->exec("ALTER TABLE `users` ADD COLUMN `following_count` INT NOT NULL DEFAULT 0"); } catch(Exception $e) {}
+    try { $pdo->exec("ALTER TABLE `posts` ADD COLUMN `views_count` INT DEFAULT 0"); } catch(Exception $e) {}
+    try { $pdo->exec("ALTER TABLE `reels` ADD COLUMN `views_count` INT DEFAULT 0"); } catch(Exception $e) {}
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS `follows` (
+          `id` INT AUTO_INCREMENT PRIMARY KEY,
+          `follower_id` INT NOT NULL,
+          `following_id` INT NOT NULL,
+          `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE KEY `idx_follow_unique` (`follower_id`, `following_id`),
+          FOREIGN KEY (`follower_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+          FOREIGN KEY (`following_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+    } catch (Exception $e) {}
 } catch (Exception $e) {}
 
-// Helper function to check admin session
+require_once __DIR__ . '/lang.php';
+
+// Airtight Zero-Trust Admin Authentication Guard
 function checkAdminAuth() {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
     if (empty($_SESSION['admin_logged_in']) || empty($_SESSION['admin_id'])) {
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) || (isset($_SERVER['CONTENT_TYPE']) && strpos($_SERVER['CONTENT_TYPE'], 'application/json') !== false)) {
+            header('Content-Type: application/json; charset=UTF-8');
+            http_response_code(401);
+            echo json_encode(['success' => false, 'message' => 'Unauthorized: Admin session required']);
+            exit;
+        }
         header('Location: login.php');
         exit;
     }
+}
+
+// Global Execution Guard: Enforce authentication instantly across all admin endpoints
+$currentAdminScript = basename($_SERVER['SCRIPT_FILENAME'] ?? ($_SERVER['PHP_SELF'] ?? ''));
+if (!in_array($currentAdminScript, ['login.php', 'logout.php', 'db.php', 'check_update.php'])) {
+    checkAdminAuth();
 }

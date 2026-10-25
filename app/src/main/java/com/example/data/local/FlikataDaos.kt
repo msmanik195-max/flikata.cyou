@@ -100,8 +100,73 @@ interface ChatDao {
 
     @androidx.room.Transaction
     suspend fun syncAllChats(chats: List<ChatEntity>) {
-        if (chats.isEmpty()) return
-        insertChats(chats)
+        clearChats()
+        if (chats.isNotEmpty()) {
+            insertChats(chats)
+        }
     }
+}
+
+@Dao
+interface HistoryDao {
+    @Query("SELECT * FROM view_history WHERE itemType = :type ORDER BY viewedAt DESC")
+    fun getHistoryByType(type: String): Flow<List<ViewHistoryEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertHistory(item: ViewHistoryEntity)
+
+    @Query("DELETE FROM view_history WHERE id = :id")
+    suspend fun deleteHistory(id: String)
+
+    @Query("DELETE FROM view_history WHERE itemType = :type")
+    suspend fun clearHistoryByType(type: String)
+
+    @Query("DELETE FROM view_history")
+    suspend fun clearAllHistory()
+}
+
+@Dao
+interface SavedDao {
+    @Query("SELECT * FROM saved_items WHERE itemType = :type ORDER BY savedAt DESC")
+    fun getSavedItemsByType(type: String): Flow<List<SavedItemEntity>>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM saved_items WHERE id = :id OR originalId = :id)")
+    fun isItemSaved(id: String): Flow<Boolean>
+
+    @Query("SELECT EXISTS(SELECT 1 FROM saved_items WHERE id = :id OR originalId = :id)")
+    suspend fun isItemSavedDirect(id: String): Boolean
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSavedItem(item: SavedItemEntity)
+
+    @Query("DELETE FROM saved_items WHERE id = :id OR originalId = :id")
+    suspend fun deleteSavedItem(id: String)
+
+    @Query("DELETE FROM saved_items WHERE itemType = :type")
+    suspend fun clearSavedByType(type: String)
+}
+
+@Dao
+interface PageDao {
+    @Query("SELECT * FROM pages ORDER BY createdAt DESC")
+    fun getAllPagesFlow(): Flow<List<PageEntity>>
+
+    @Query("SELECT * FROM pages ORDER BY createdAt DESC")
+    suspend fun getAllPages(): List<PageEntity>
+
+    @Query("SELECT * FROM pages WHERE id = :id LIMIT 1")
+    suspend fun getPageById(id: String): PageEntity?
+
+    @Query("SELECT * FROM pages WHERE userId = :userId ORDER BY createdAt DESC")
+    fun getPagesByUser(userId: String): Flow<List<PageEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertPage(page: PageEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAllPages(pages: List<PageEntity>)
+
+    @Query("DELETE FROM pages WHERE id = :id")
+    suspend fun deletePage(id: String)
 }
 

@@ -68,6 +68,7 @@ fun HomeScreen(
     onCreateStoryClick: () -> Unit = {}
 ) {
     val currentUser by viewModel.currentUser.collectAsState()
+    val activePage by viewModel.activePage.collectAsState()
     val posts by viewModel.posts.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val stories by viewModel.stories.collectAsState()
@@ -114,7 +115,6 @@ fun HomeScreen(
         FlikataHeader(
             unreadNotificationsCount = unreadNotificationsCount,
             onSearchClick = { viewModel.navigateTo(Screen.SEARCH) },
-            onFriendsClick = { viewModel.navigateTo(Screen.FRIENDS) },
             onNotificationsClick = { viewModel.navigateTo(Screen.NOTIFICATIONS) },
             onMenuClick = onMenuClick
         )
@@ -172,11 +172,20 @@ fun HomeScreen(
                                     .fillMaxWidth()
                                     .padding(horizontal = 14.dp, vertical = 10.dp)
                             ) {
+                                val composerAvatar = activePage?.logoUrl ?: currentUser?.profilePic
+                                val composerName = activePage?.name ?: (currentUser?.fullName ?: "User")
+
                                 // User Profile Avatar with Initials Logo Fallback
-                                Box(modifier = Modifier.clickable { viewModel.openUserProfile(currentUser?.id ?: "") }) {
+                                Box(modifier = Modifier.clickable {
+                                    if (activePage != null) {
+                                        viewModel.openPageProfile(activePage!!)
+                                    } else {
+                                        viewModel.openUserProfile(currentUser?.id ?: "")
+                                    }
+                                }) {
                                     FlikataAvatar(
-                                        name = currentUser?.fullName ?: "User",
-                                        avatarUrl = currentUser?.profilePic,
+                                        name = composerName,
+                                        avatarUrl = composerAvatar,
                                         size = 40.dp
                                     )
                                 }
@@ -201,10 +210,11 @@ fun HomeScreen(
                                     contentAlignment = Alignment.CenterStart
                                 ) {
                                     Text(
-                                        text = "What's on your mind?",
+                                        text = if (activePage != null) "Write as ${activePage!!.name}..." else "What's on your mind?",
                                         color = SoftUITheme.TextSecondary,
-                                        fontSize = 14.5.sp,
-                                        fontWeight = FontWeight.Medium
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        maxLines = 1
                                     )
                                 }
 
@@ -289,6 +299,9 @@ fun HomeScreen(
 
                     // Post Feed List
                     itemsIndexed(posts, key = { _, post -> "post_${post.id}" }) { _, post ->
+                        LaunchedEffect(post.id) {
+                            viewModel.recordPostViewHistory(post)
+                        }
                         PostCard(
                             post = post,
                             currentUser = currentUser,
@@ -298,7 +311,8 @@ fun HomeScreen(
                             onDeletePost = { postId -> viewModel.deletePost(postId) },
                             onEditPost = { postId, content, privacy -> viewModel.editPost(postId, content, privacy) },
                             onAddComment = { postId, text -> viewModel.addComment(postId, text) },
-                            onUserClick = { userId, authorName -> viewModel.openUserProfile(userId, authorName) }
+                            onUserClick = { userId, authorName -> viewModel.openUserProfile(userId, authorName) },
+                            onSavePost = { viewModel.toggleSavePost(it) }
                         )
                     }
                 }
@@ -316,7 +330,7 @@ private fun CreateStoryCard(
     val cardBg = if (isDark) Color(0xFF1E2128) else Color(0xFFF9FAFC)
     val cardBorder = if (isDark) Color(0x33FFFFFF) else Color(0x1F000000)
 
-    // Sleek Card without drop shadow ("শ্যাডো ছাড়া কার্ড")
+    // Sleek Card without drop shadow (Clean flat card)
     Box(
         modifier = Modifier
             .width(108.dp)

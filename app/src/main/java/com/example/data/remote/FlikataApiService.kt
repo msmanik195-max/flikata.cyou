@@ -73,7 +73,8 @@ interface FlikataApiService {
         @Field("background_style") backgroundStyle: String?,
         @Field("privacy") privacy: String,
         @Field("image_url") imageUrl: String?,
-        @Field("video_url") videoUrl: String? = null
+        @Field("video_url") videoUrl: String? = null,
+        @Field("page_id") pageId: String? = null
     ): Response<Post>
 
     @GET("posts/get_posts.php")
@@ -521,5 +522,100 @@ interface FlikataApiService {
     suspend fun submitMonetization(
         @Field("user_id") userId: String
     ): Response<com.example.data.model.SubmitMonetizationResponse>
+
+    // Marketplace APIs
+    @GET("marketplace/get_products.php")
+    suspend fun getMarketplaceProducts(
+        @Query("category") category: String? = null,
+        @Query("query") query: String? = null,
+        @Query("location") location: String? = null,
+        @Query("user_id") userId: String? = null
+    ): Response<com.example.data.model.MarketplaceListResponse>
+
+    @FormUrlEncoded
+    @POST("marketplace/create_product.php")
+    suspend fun createMarketplaceProduct(
+        @Field("user_id") userId: String,
+        @Field("title") title: String,
+        @Field("price") price: Double,
+        @Field("category") category: String,
+        @Field("condition") condition: String,
+        @Field("location") location: String,
+        @Field("description") description: String,
+        @Field("image_url") imageUrl: String?
+    ): Response<com.example.data.model.MarketplaceCreateResponse>
+
+    @FormUrlEncoded
+    @POST("marketplace/delete_product.php")
+    suspend fun deleteMarketplaceProduct(
+        @Field("product_id") productId: String,
+        @Field("user_id") userId: String
+    ): Response<GenericResponse>
+
+    // Pages APIs
+    @GET("pages/get_pages.php")
+    suspend fun getPages(
+        @Query("user_id") userId: String? = null
+    ): Response<com.example.data.model.PagesListResponse>
+
+    @FormUrlEncoded
+    @POST("pages/create_page.php")
+    suspend fun createPage(
+        @Field("user_id") userId: String,
+        @Field("name") name: String,
+        @Field("category") category: String,
+        @Field("bio") bio: String?,
+        @Field("logo_url") logoUrl: String?,
+        @Field("banner_url") bannerUrl: String?,
+        @Field("email") email: String?,
+        @Field("phone") phone: String?,
+        @Field("website") website: String?
+    ): Response<com.example.data.model.PageCreateResponse>
+
+    @FormUrlEncoded
+    @POST("pages/follow_page.php")
+    suspend fun followPage(
+        @Field("page_id") pageId: String,
+        @Field("user_id") userId: String
+    ): Response<GenericResponse>
+
+    @GET("pages/page_settings.php")
+    suspend fun getPageSettings(): Response<com.example.data.model.PageSettingsResponse>
+
+    @FormUrlEncoded
+    @POST("pages/page_settings.php")
+    suspend fun updatePageSettings(
+        @Field("max_pages_per_user") maxPagesPerUser: Int
+    ): Response<GenericResponse>
+
+    @GET("leaderboard/get_leaderboard.php")
+    suspend fun getLeaderboard(
+        @retrofit2.http.Query("limit") limit: Int = 20
+    ): Response<com.example.data.model.LeaderboardResponse>
+
+    @GET("leaderboard/leaderboard_settings.php")
+    suspend fun getLeaderboardSettings(): Response<com.example.data.model.LeaderboardSettingsResponse>
+
+    @FormUrlEncoded
+    @POST("leaderboard/leaderboard_settings.php")
+    suspend fun updateLeaderboardSettings(
+        @Field("user_limit") userLimit: Int
+    ): Response<GenericResponse>
+
+    @FormUrlEncoded
+    @POST("profile/toggle_follow.php")
+    suspend fun toggleFollowUser(
+        @Field("user_id") targetUserId: Int
+    ): Response<com.example.data.model.ToggleFollowResponse>
+
+    @GET("app/check_update.php")
+    suspend fun checkAppUpdate(
+        @retrofit2.http.Query("current_version_code") currentVersionCode: Int,
+        @retrofit2.http.Query("current_version_name") currentVersionName: String
+    ): Response<com.example.data.model.AppUpdateResponse>
+
+    @GET("app/get_feature_settings.php")
+    suspend fun getFeatureSettings(): Response<com.example.data.model.FeatureSettingsResponse>
 }
+
 

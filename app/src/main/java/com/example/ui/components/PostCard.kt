@@ -29,6 +29,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
@@ -107,6 +108,7 @@ fun PostCard(
     onEditPost: (String, String, String) -> Unit = { _, _, _ -> },
     onAddComment: (String, String) -> Unit = { _, _ -> },
     onUserClick: (String, String) -> Unit = { _, _ -> },
+    onSavePost: (Post) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showReactionPicker by remember { mutableStateOf(false) }
@@ -498,6 +500,13 @@ fun PostCard(
             onDismiss = {
                 scope.launch { optionsSheetState.hide() }.invokeOnCompletion { showOptionsSheet = false }
             },
+            onSaveClick = {
+                scope.launch { optionsSheetState.hide() }.invokeOnCompletion {
+                    showOptionsSheet = false
+                    onSavePost(post)
+                    Toast.makeText(context, "Post saved to your collection!", Toast.LENGTH_SHORT).show()
+                }
+            },
             onDeleteClick = {
                 scope.launch { optionsSheetState.hide() }.invokeOnCompletion {
                     showOptionsSheet = false
@@ -514,12 +523,7 @@ fun PostCard(
                 scope.launch { optionsSheetState.hide() }.invokeOnCompletion {
                     showOptionsSheet = false
                     val isVideo = !post.videoUrl.isNullOrBlank() || post.isVideo
-                    val cleanId = post.id.removePrefix("post_")
-                    val shareUrl = if (isVideo) {
-                        "https://flikata.cyou/backend/post.php?reel_id=$cleanId"
-                    } else {
-                        "https://flikata.cyou/backend/post.php?id=$cleanId"
-                    }
+                    val shareUrl = com.example.data.remote.SecureConfig.getPostShareUrl(post.id, isVideo)
                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     val clip = ClipData.newPlainText("Flikata Link", shareUrl)
                     clipboard.setPrimaryClip(clip)
@@ -623,6 +627,7 @@ fun PostOptionsBottomSheet(
     isOwnPost: Boolean,
     sheetState: SheetState,
     onDismiss: () -> Unit,
+    onSaveClick: () -> Unit = {},
     onDeleteClick: () -> Unit,
     onEditClick: () -> Unit = {},
     onCopyLinkClick: () -> Unit = {},
@@ -643,8 +648,16 @@ fun PostOptionsBottomSheet(
                 .background(sheetSurface)
                 .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
+            // Save Option (Universal for all posts - Saves to Saved Page)
+            PostOptionRow(
+                icon = Icons.Default.Bookmark,
+                iconTint = Color(0xFF0075FF),
+                title = "Save post",
+                onClick = onSaveClick
+            )
+
             if (isOwnPost) {
-                // Own Post Options (Matching Screenshot 1 without Boost Post, Boost Analytics, Report Post)
+                // Own Post Options
                 PostOptionRow(
                     icon = Icons.Default.Edit,
                     iconTint = FlikataPrimary,
@@ -673,7 +686,7 @@ fun PostOptionsBottomSheet(
                     onClick = onShareClick
                 )
             } else {
-                // Someone Else's Post Options (Matching Screenshot 2)
+                // Someone Else's Post Options
                 PostOptionRow(
                     icon = Icons.Default.ReportProblem,
                     iconTint = Color(0xFFFF9800),

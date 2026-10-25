@@ -72,7 +72,7 @@ try {
 
     // 5. Insert transaction log
     $tStmt = $pdo->prepare("INSERT INTO wallet_transactions (user_id, type, amount, description, status) VALUES (?, 'withdraw', ?, ?, 'pending')");
-    $tDesc = "উইথড্র রিকোয়েস্ট: {$methodName} ({$accountNumber})";
+    $tDesc = "Withdrawal Request: {$methodName} ({$accountNumber})";
     $tStmt->execute([$userId, $amount, $tDesc]);
 
     $pdo->commit();

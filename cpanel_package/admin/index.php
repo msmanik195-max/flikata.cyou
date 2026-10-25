@@ -4,22 +4,35 @@
  * Light Mode, Card-Style with Modern Analytics Charts
  */
 require_once __DIR__ . '/includes/db.php';
+checkAdminAuth();
 
-$pageTitle = 'ড্যাশবোর্ড - Flikata Admin';
-$pageHeading = 'এডমিন ড্যাশবোর্ড';
-$pageSubheading = 'Flikata সোশ্যাল অ্যাপের সামগ্রিক পরিসংখ্যান ও অ্যাক্টিভিটি রিপোর্ট';
+$pageTitle = ($currentLang === 'en') ? 'Dashboard - Flikata Admin' : 'ড্যাশবোর্ড - Flikata Admin';
+$pageHeading = ($currentLang === 'en') ? 'Admin Dashboard' : 'এডমিন ড্যাশবোর্ড';
+$pageSubheading = ($currentLang === 'en') ? 'Overall platform statistics and activity summary' : 'প্ল্যাটফর্মের সার্বিক পরিসংখ্যান ও কার্যক্রমের সারসংক্ষেপ';
 
-// 1. Fetch User Counts
-$totalUsers = (int)$pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
-$bannedUsers = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE is_banned = 1")->fetchColumn();
-$activeUsers = max(0, $totalUsers - $bannedUsers);
-$verifiedUsers = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE is_verified = 1")->fetchColumn();
+// 1. Fetch User Counts safely
+$totalUsers = 0;
+$bannedUsers = 0;
+$activeUsers = 0;
+$verifiedUsers = 0;
+try {
+    $totalUsers = (int)$pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
+    $bannedUsers = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE is_banned = 1")->fetchColumn();
+    $activeUsers = max(0, $totalUsers - $bannedUsers);
+    $verifiedUsers = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE is_verified = 1")->fetchColumn();
+} catch (Exception $e) {}
 
-// 2. Fetch Post Counts by Category
-$totalPosts = (int)$pdo->query("SELECT COUNT(*) FROM posts")->fetchColumn();
-$textPosts = (int)$pdo->query("SELECT COUNT(*) FROM posts WHERE (image_url IS NULL OR image_url = '') AND (video_url IS NULL OR video_url = '')")->fetchColumn();
-$imagePosts = (int)$pdo->query("SELECT COUNT(*) FROM posts WHERE image_url IS NOT NULL AND image_url != ''")->fetchColumn();
-$videoPosts = (int)$pdo->query("SELECT COUNT(*) FROM posts WHERE video_url IS NOT NULL AND video_url != ''")->fetchColumn();
+// 2. Fetch Post Counts by Category safely
+$totalPosts = 0;
+$textPosts = 0;
+$imagePosts = 0;
+$videoPosts = 0;
+try {
+    $totalPosts = (int)$pdo->query("SELECT COUNT(*) FROM posts")->fetchColumn();
+    $textPosts = (int)$pdo->query("SELECT COUNT(*) FROM posts WHERE (image_url IS NULL OR image_url = '') AND (video_url IS NULL OR video_url = '')")->fetchColumn();
+    $imagePosts = (int)$pdo->query("SELECT COUNT(*) FROM posts WHERE image_url IS NOT NULL AND image_url != ''")->fetchColumn();
+    $videoPosts = (int)$pdo->query("SELECT COUNT(*) FROM posts WHERE video_url IS NOT NULL AND video_url != ''")->fetchColumn();
+} catch (Exception $e) {}
 
 // 3. Fetch Stories & Reels
 $totalStories = 0;

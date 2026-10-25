@@ -2,7 +2,9 @@
 DirectoryIndex index.php login.php
 
 # Security & Options
-Options -Indexes +FollowSymLinks
+<IfModule mod_negotiation.c>
+    Options -Indexes
+</IfModule>
 
 <IfModule mod_headers.c>
     Header set X-Content-Type-Options "nosniff"

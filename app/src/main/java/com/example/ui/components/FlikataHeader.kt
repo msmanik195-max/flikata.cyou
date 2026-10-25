@@ -199,15 +199,7 @@ fun FlikataHeader(
                     onClick = onSearchClick
                 )
 
-                // 2. Friends
-                Header3DIconButton(
-                    drawableRes = R.drawable.ic_custom_friends,
-                    contentDescription = "Friends",
-                    iconSize = 19.dp,
-                    onClick = onFriendsClick
-                )
-
-                // 3. Notification (with 3D badge if unread)
+                // 2. Notification (with 3D badge if unread)
                 Box {
                     Header3DIconButton(
                         drawableRes = R.drawable.ic_custom_notification,

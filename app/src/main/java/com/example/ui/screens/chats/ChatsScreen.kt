@@ -84,31 +84,16 @@ fun ChatsScreen(
     val chats by viewModel.chats.collectAsState()
     val allPosts by viewModel.posts.collectAsState()
     val isRefreshingChats by viewModel.isRefreshingChats.collectAsState()
-    val activeUsers = remember(chats, allPosts, currentUser) {
-        val fromChats = chats.map {
+    val featureSettings by viewModel.featureSettings.collectAsState()
+    val activeUsers = remember(chats) {
+        chats.filter { it.isOnline }.map {
             ActiveUser(
                 id = it.senderId,
                 name = it.senderName,
                 avatar = it.senderAvatar,
                 isVerified = it.isVerified
             )
-        }
-        val fromPosts = allPosts.filter { it.userId.isNotBlank() && it.userId != currentUser?.id && it.authorName != currentUser?.fullName }.map {
-            ActiveUser(
-                id = it.userId,
-                name = it.authorName,
-                avatar = it.authorAvatar,
-                isVerified = it.isVerified
-            )
-        }
-        val communityDefaults = listOf(
-            ActiveUser("4", "আকাশ আহমেদ", "https://pub-c98a2e409ad94dbb8aded428cf2952a1.r2.dev/images/flikata_20261004_090334_c57b9129d2b6.jpg", false),
-            ActiveUser("3", "Maruf Home", "https://pub-c98a2e409ad94dbb8aded428cf2952a1.r2.dev/images/flikata_20261003_055434_34e12090472c.jpg", false),
-            ActiveUser("8", "Test User One", "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400", true),
-            ActiveUser("9", "Test User Two", "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400", true)
-        ).filter { it.id != currentUser?.id }
-
-        (fromChats + fromPosts + communityDefaults).distinctBy { if (it.id.isNotBlank()) it.id else it.name }
+        }.distinctBy { if (it.id.isNotBlank()) it.id else it.name }
     }
     var searchQuery by remember { mutableStateOf("") }
 
@@ -312,6 +297,28 @@ fun ChatsScreen(
                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+            if (!featureSettings.allowChat) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 6.dp)
+                            .shadow(2.dp, RoundedCornerShape(14.dp))
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Color(0xFFFFF1F2))
+                            .border(1.dp, Color(0xFFFECDD3), RoundedCornerShape(14.dp))
+                            .padding(14.dp)
+                    ) {
+                        Text(
+                            text = "বিজ্ঞপ্তি: চ্যাট অপশন সাময়িকভাবে বন্ধ আছে",
+                            color = Color(0xFFBE123C),
+                            fontSize = 13.5.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
             // Active Users Row
             if (activeUsers.isNotEmpty() && searchQuery.isBlank()) {
                 item {
@@ -331,6 +338,10 @@ fun ChatsScreen(
                                 ActiveUser3DItem(
                                     user = user,
                                     onClick = {
+                                        if (!featureSettings.allowChat) {
+                                            viewModel.featureNoticeDialog.value = "চ্যাট অপশন সাময়িকভাবে বন্ধ আছে"
+                                            return@ActiveUser3DItem
+                                        }
                                         viewModel.openChatWithUser(
                                             name = user.name,
                                             avatar = user.avatar,
@@ -407,7 +418,13 @@ fun ChatsScreen(
                 items(filteredChats, key = { it.id }) { chat ->
                     Chat3DItemRow(
                         chat = chat,
-                        onClick = { viewModel.openChatDetail(chat) }
+                        onClick = {
+                            if (!featureSettings.allowChat) {
+                                viewModel.featureNoticeDialog.value = "চ্যাট অপশন সাময়িকভাবে বন্ধ আছে"
+                            } else {
+                                viewModel.openChatDetail(chat)
+                            }
+                        }
                     )
                 }
             }

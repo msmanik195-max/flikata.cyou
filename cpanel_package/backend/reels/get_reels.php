@@ -13,6 +13,17 @@ if (!$currentUserId && !empty($_GET['user_id'])) {
     $currentUserId = (int)$_GET['user_id'];
 }
 
+// Check allow_reels setting
+try {
+    $fsStmt = $pdo->query("SELECT allow_reels FROM app_feature_settings WHERE id = 1 LIMIT 1");
+    $allowReels = $fsStmt ? $fsStmt->fetchColumn() : 1;
+    if ($allowReels !== false && (int)$allowReels === 0) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+} catch (Exception $e) {}
+
 // 1. Backfill any videos from posts table into reels table so every video is available in Reels
 try {
     $pdo->exec("
@@ -83,7 +94,7 @@ foreach ($reels as $r) {
         'likesCount'    => (int)$r['likes_count'],
         'commentsCount' => (int)$r['comments_count'],
         'sharesCount'   => (int)$r['shares_count'],
-        'viewsCount'    => $r['views_count'] > 1000 ? round($r['views_count'] / 1000, 1) . 'K' : (string)$r['views_count'],
+        'viewsCount'    => (string)$r['views_count'],
         'isLiked'       => (bool)$r['is_liked'],
         'userReaction'  => $r['user_reaction'] ?: null,
         'comments'      => array_map(function($c) {
@@ -144,7 +155,7 @@ try {
                 'likesCount'    => (int)$vp['likes_count'],
                 'commentsCount' => (int)$vp['comments_count'],
                 'sharesCount'   => (int)$vp['shares_count'],
-                'viewsCount'    => '0',
+                'viewsCount'    => (string)($vp['views_count'] ?? '0'),
                 'isLiked'       => false,
                 'userReaction'  => null,
                 'comments'      => array_map(function($c) {

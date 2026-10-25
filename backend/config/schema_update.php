@@ -227,6 +227,112 @@ function ensureVerificationAndWalletSchema($pdo) {
               INDEX (`status`)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
         } catch (Exception $e) {}
+
+        // Marketplace Products Table
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `marketplace_products` (
+              `id` INT AUTO_INCREMENT PRIMARY KEY,
+              `user_id` INT NOT NULL,
+              `title` VARCHAR(255) NOT NULL,
+              `price` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+              `currency` VARCHAR(10) NOT NULL DEFAULT 'BDT',
+              `category` VARCHAR(100) NOT NULL DEFAULT 'General',
+              `condition_state` VARCHAR(50) NOT NULL DEFAULT 'New',
+              `location` VARCHAR(150) NOT NULL DEFAULT 'Dhaka, Bangladesh',
+              `description` TEXT DEFAULT NULL,
+              `image_url` TEXT DEFAULT NULL,
+              `is_sold` TINYINT(1) DEFAULT 0,
+              `views_count` INT DEFAULT 0,
+              `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+              `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+              INDEX (`user_id`),
+              INDEX (`category`),
+              INDEX (`is_sold`),
+              FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+        } catch (Exception $e) {}
+
+        // Pages Table
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `pages` (
+              `id` INT AUTO_INCREMENT PRIMARY KEY,
+              `user_id` INT NOT NULL,
+              `name` VARCHAR(255) NOT NULL,
+              `category` VARCHAR(100) NOT NULL,
+              `bio` TEXT DEFAULT NULL,
+              `logo_url` TEXT DEFAULT NULL,
+              `banner_url` TEXT DEFAULT NULL,
+              `email` VARCHAR(255) DEFAULT NULL,
+              `phone` VARCHAR(50) DEFAULT NULL,
+              `website` VARCHAR(255) DEFAULT NULL,
+              `followers_count` INT DEFAULT 0,
+              `likes_count` INT DEFAULT 0,
+              `is_verified` TINYINT(1) DEFAULT 0,
+              `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+              `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+              INDEX (`user_id`),
+              INDEX (`name`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+        } catch (Exception $e) {}
+
+        // Page Settings Table (Configurable max pages allowed per profile)
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `page_settings` (
+              `id` INT PRIMARY KEY DEFAULT 1,
+              `max_pages_per_user` INT DEFAULT 5,
+              `description` VARCHAR(255) DEFAULT 'Max pages allowed per user profile',
+              `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+            $pdo->exec("INSERT INTO `page_settings` (`id`, `max_pages_per_user`, `description`)
+              VALUES (1, 5, 'Max pages allowed per user profile')
+              ON DUPLICATE KEY UPDATE `id` = 1;");
+        } catch (Exception $e) {}
+
+        // Ensure posts table has page_id column
+        try {
+            $pdo->exec("ALTER TABLE `posts` ADD COLUMN `page_id` INT DEFAULT NULL");
+        } catch (Exception $e) {}
+
+        // Leaderboard Settings Table (Configurable user limit for Leaderboard)
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `leaderboard_settings` (
+              `id` INT PRIMARY KEY DEFAULT 1,
+              `user_limit` INT DEFAULT 20,
+              `description` VARCHAR(255) DEFAULT 'Max users displayed on Leaderboard',
+              `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+            $pdo->exec("INSERT INTO `leaderboard_settings` (`id`, `user_limit`, `description`)
+              VALUES (1, 20, 'Max users displayed on Leaderboard')
+              ON DUPLICATE KEY UPDATE `id` = 1;");
+        } catch (Exception $e) {}
+
+        // App Updates Table
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `app_updates` (
+              `id` INT AUTO_INCREMENT PRIMARY KEY,
+              `version_code` INT NOT NULL,
+              `version_name` VARCHAR(50) NOT NULL,
+              `apk_url` VARCHAR(1000) NOT NULL,
+              `apk_size_mb` VARCHAR(50) DEFAULT '30 MB',
+              `release_notes` TEXT DEFAULT NULL,
+              `is_force_update` TINYINT(1) DEFAULT 1,
+              `is_active` TINYINT(1) DEFAULT 1,
+              `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+              `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+              INDEX (`version_code`),
+              INDEX (`is_active`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+            // Seed default current version if table empty
+            $cnt = (int)$pdo->query("SELECT COUNT(*) FROM `app_updates`")->fetchColumn();
+            if ($cnt === 0) {
+                $pdo->prepare("INSERT INTO `app_updates` (`version_code`, `version_name`, `apk_url`, `apk_size_mb`, `release_notes`, `is_force_update`, `is_active`)
+                    VALUES (13, '6.0', '', '30 MB', 'Welcome to Flikata v6.0! Enjoy pure follow/unfollow, live views tracking, and persistent profile settings.', 0, 1)
+                ")->execute();
+            }
+        } catch (Exception $e) {}
     } catch (Exception $e) {}
 
     $migrated = true;

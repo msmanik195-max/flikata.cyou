@@ -21,29 +21,51 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Campaign
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,7 +80,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.data.remote.ApiClient
 import com.example.ui.components.FlikataAvatar
 import com.example.ui.components.SoftUITheme
 import com.example.ui.components.VerifiedBadge
@@ -72,6 +93,7 @@ import com.example.ui.viewmodel.Screen
  * followed by: Wallet, Marketplace, Verified Badge, History, Saved, Dashboard, Advertisement, Settings,
  * and bottom Connected Server & Logout controls.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MenuScreen(
     viewModel: MainViewModel,
@@ -79,7 +101,12 @@ fun MenuScreen(
 ) {
     val currentUser by viewModel.currentUser.collectAsState()
     val isDarkMode by viewModel.isDarkMode.collectAsState()
+    val activePage by viewModel.activePage.collectAsState()
+    val pages by viewModel.pages.collectAsState()
     val context = LocalContext.current
+    var isSettingsExpanded by remember { mutableStateOf(false) }
+    var showProfileSwitchSheet by remember { mutableStateOf(false) }
+    val profileSheetState = rememberModalBottomSheetState()
 
     val screenBgBrush = if (isDarkMode) {
         Brush.verticalGradient(listOf(Color(0xFF121418), Color(0xFF181A20)))
@@ -215,7 +242,7 @@ fun MenuScreen(
                         Icon(
                             imageVector = Icons.Default.Settings,
                             contentDescription = "Settings",
-                            tint = Color(0xFF1E3A5F),
+                            tint = if (isDarkMode) Color.White else Color(0xFF111418),
                             modifier = Modifier.size(19.dp)
                         )
                     }
@@ -249,7 +276,13 @@ fun MenuScreen(
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
-                        onClick = onProfileClick
+                        onClick = {
+                            if (activePage != null) {
+                                viewModel.openPageProfile(activePage!!)
+                            } else {
+                                onProfileClick()
+                            }
+                        }
                     )
                     .padding(14.dp)
                     .testTag("menu_profile_card")
@@ -259,7 +292,10 @@ fun MenuScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
                         Box(
                             modifier = Modifier
                                 .size(52.dp)
@@ -269,11 +305,19 @@ fun MenuScreen(
                                 .border(1.5.dp, if (isDarkMode) Color(0x33FFFFFF) else Color(0x99FFFFFF), CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
-                            FlikataAvatar(
-                                name = currentUser?.fullName ?: "User",
-                                avatarUrl = currentUser?.profilePic,
-                                size = 50.dp
-                            )
+                            if (activePage != null) {
+                                FlikataAvatar(
+                                    name = activePage!!.name,
+                                    avatarUrl = activePage!!.logoUrl,
+                                    size = 50.dp
+                                )
+                            } else {
+                                FlikataAvatar(
+                                    name = currentUser?.fullName ?: "User",
+                                    avatarUrl = currentUser?.profilePic,
+                                    size = 50.dp
+                                )
+                            }
                         }
 
                         Spacer(modifier = Modifier.width(14.dp))
@@ -281,19 +325,20 @@ fun MenuScreen(
                         Column {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = currentUser?.fullName ?: "User Profile",
+                                    text = if (activePage != null) activePage!!.name else (currentUser?.fullName ?: "User Profile"),
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 16.5.sp,
                                     color = SoftUITheme.TextDark
                                 )
-                                if (currentUser?.isVerified == true) {
+                                val isVer = if (activePage != null) activePage!!.isVerified else (currentUser?.isVerified == true)
+                                if (isVer) {
                                     Spacer(modifier = Modifier.width(5.dp))
                                     VerifiedBadge(size = 20.dp)
                                 }
                             }
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "See your profile",
+                                text = if (activePage != null) "Page Profile · Tap to view page" else "See your profile",
                                 fontSize = 12.5.sp,
                                 color = Color(0xFF0075FF),
                                 fontWeight = FontWeight.SemiBold
@@ -301,11 +346,24 @@ fun MenuScreen(
                         }
                     }
 
-                    Icon(
-                        imageVector = Icons.Default.ChevronRight,
-                        contentDescription = "Go",
-                        tint = SoftUITheme.IconTint
-                    )
+                    // Facebook-style Profile Switcher Button
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .shadow(2.dp, CircleShape)
+                            .clip(CircleShape)
+                            .background(if (isDarkMode) Color(0xFF2C303A) else Color(0xFFE8F1FC))
+                            .clickable { showProfileSwitchSheet = true }
+                            .testTag("menu_switch_profile_button"),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SwapHoriz,
+                            contentDescription = "Switch Profile",
+                            tint = Color(0xFF0075FF),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
 
@@ -423,7 +481,7 @@ fun MenuScreen(
                         subtitle = "Buy & sell items",
                         iconBg = Color(0xFFE0F2FE),
                         iconTint = Color(0xFF0284C7),
-                        badgeText = "Coming Soon",
+                        badgeText = null,
                         testTag = "menu_card_marketplace",
                         modifier = Modifier.weight(1f),
                         onClick = { viewModel.navigateTo(Screen.MARKETPLACE) }
@@ -435,7 +493,7 @@ fun MenuScreen(
                     MenuShortcutCard(
                         icon = Icons.Default.Verified,
                         title = "Verified Badge",
-                        subtitle = "Meta verification & badge",
+                        subtitle = "Official blue badge & status",
                         iconBg = Color(0xFFE3F2FD),
                         iconTint = Color(0xFF0075FF),
                         badgeText = null,
@@ -449,12 +507,10 @@ fun MenuScreen(
                         subtitle = "Activity log & views",
                         iconBg = Color(0xFFEDE7F6),
                         iconTint = Color(0xFF673AB7),
-                        badgeText = "Coming Soon",
+                        badgeText = null,
                         testTag = "menu_card_history",
                         modifier = Modifier.weight(1f),
-                        onClick = {
-                            Toast.makeText(context, "History will be available soon!", Toast.LENGTH_SHORT).show()
-                        }
+                        onClick = { viewModel.navigateTo(Screen.HISTORY) }
                     )
                 }
 
@@ -466,17 +522,15 @@ fun MenuScreen(
                         subtitle = "Saved posts & bookmarks",
                         iconBg = Color(0xFFE0F7FA),
                         iconTint = Color(0xFF00897B),
-                        badgeText = "Coming Soon",
+                        badgeText = null,
                         testTag = "menu_card_saved",
                         modifier = Modifier.weight(1f),
-                        onClick = {
-                            Toast.makeText(context, "Saved items will be available soon!", Toast.LENGTH_SHORT).show()
-                        }
+                        onClick = { viewModel.navigateTo(Screen.SAVED) }
                     )
                     MenuShortcutCard(
                         icon = Icons.Default.Dashboard,
                         title = "Dashboard",
-                        subtitle = "Professional tools & monetization",
+                        subtitle = "Analytics",
                         iconBg = Color(0xFFFFF3E0),
                         iconTint = Color(0xFFE65100),
                         badgeText = null,
@@ -488,7 +542,7 @@ fun MenuScreen(
                     )
                 }
 
-                // Row 4: Advertisement & Settings
+                // Row 4: Advertisement & Pages
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     MenuShortcutCard(
                         icon = Icons.Default.Campaign,
@@ -504,109 +558,196 @@ fun MenuScreen(
                         }
                     )
                     MenuShortcutCard(
-                        icon = Icons.Default.Settings,
-                        title = "Settings",
-                        subtitle = "Privacy & preferences",
-                        iconBg = Color(0xFFECEFF1),
-                        iconTint = Color(0xFF455A64),
-                        badgeText = "Coming Soon",
-                        testTag = "menu_card_settings",
+                        icon = Icons.Default.Flag,
+                        title = "Pages",
+                        subtitle = "Create & manage pages",
+                        iconBg = Color(0xFFFFF8E1),
+                        iconTint = Color(0xFFF57F17),
+                        badgeText = if (pages.isNotEmpty()) "${pages.size}" else null,
+                        testTag = "menu_card_pages",
                         modifier = Modifier.weight(1f),
                         onClick = {
-                            Toast.makeText(context, "Settings will be available in the next update!", Toast.LENGTH_SHORT).show()
+                            viewModel.navigateTo(Screen.PAGES)
+                        }
+                    )
+                }
+
+                // Row 5: Leaderboard
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    MenuShortcutCard(
+                        icon = Icons.Default.EmojiEvents,
+                        title = "Leaderboard",
+                        subtitle = "Top active community leaders",
+                        iconBg = Color(0xFFFFF8E1),
+                        iconTint = Color(0xFFF59E0B),
+                        badgeText = "Top Rankings",
+                        testTag = "menu_card_leaderboard",
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            viewModel.navigateTo(Screen.LEADERBOARD)
                         }
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // 3D Connected Server Card (Preserved per request)
+            // Expandable Settings Card (Full-width like Log Out Button with Dropdown Chevron)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .shadow(
-                        elevation = if (isDarkMode) 2.dp else 1.dp,
-                        shape = RoundedCornerShape(18.dp),
+                        elevation = if (isDarkMode) 2.dp else 2.dp,
+                        shape = RoundedCornerShape(16.dp),
                         ambientColor = SoftUITheme.ShadowDark
                     )
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(cardBg)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(if (isDarkMode) Color(0xFF242730) else Color.White)
                     .border(
-                        1.dp,
-                        cardBorderBrush,
-                        RoundedCornerShape(18.dp)
+                        width = 1.dp,
+                        brush = if (isDarkMode) Brush.verticalGradient(listOf(Color(0x33FFFFFF), Color(0x11FFFFFF)))
+                                else Brush.verticalGradient(listOf(Color(0xEEFFFFFF), Color(0x33A0C0E8))),
+                        shape = RoundedCornerShape(16.dp)
                     )
-                    .padding(14.dp)
+                    .testTag("menu_settings_bar")
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // Header Bar
                     Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null,
+                                onClick = { isSettingsExpanded = !isSettingsExpanded }
+                            )
+                            .padding(horizontal = 16.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f)
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(42.dp)
-                                .shadow(2.dp, RoundedCornerShape(12.dp))
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (isDarkMode) Color(0xFF1E2638) else Color(0xFFE8F1FC)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Dns,
-                                contentDescription = "Server",
-                                tint = Color(0xFF0075FF),
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(12.dp))
-
-                        Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isDarkMode) Color(0xFF333842) else Color(0xFFECEFF1)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Settings,
+                                    contentDescription = "Settings",
+                                    tint = if (isDarkMode) Color.White else Color(0xFF111418),
+                                    modifier = Modifier.size(19.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
                             Text(
-                                text = "Connected Server",
+                                text = "Settings & Privacy",
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 14.5.sp,
-                                color = SoftUITheme.TextDark,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = ApiClient.baseUrl,
-                                fontSize = 12.sp,
-                                color = SoftUITheme.TextSecondary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                fontSize = 15.sp,
+                                color = if (isDarkMode) Color.White else Color(0xFF111418)
                             )
                         }
+
+                        // Dropdown Chevron
+                        Icon(
+                            imageVector = if (isSettingsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = if (isSettingsExpanded) "Collapse" else "Expand",
+                            tint = SoftUITheme.TextSecondary,
+                            modifier = Modifier.size(22.dp)
+                        )
                     }
 
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    Box(
-                        modifier = Modifier
-                            .shadow(2.dp, RoundedCornerShape(10.dp))
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(if (isDarkMode) Color(0xFF1B3020) else Color(0xFFE8F7EC))
-                            .border(1.dp, Color(0x4445BD62), RoundedCornerShape(10.dp))
-                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    // Dropdown Options
+                    AnimatedVisibility(
+                        visible = isSettingsExpanded,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
                     ) {
-                        Text(
-                            text = "Live",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.5.sp,
-                            color = Color(0xFF45BD62)
-                        )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp)
+                                .padding(bottom = 8.dp)
+                        ) {
+                            HorizontalDivider(
+                                color = if (isDarkMode) Color(0x22FFFFFF) else Color(0x1F000000),
+                                thickness = 0.8.dp,
+                                modifier = Modifier.padding(bottom = 6.dp)
+                            )
+
+                            val settingsOptions = listOf(
+                                Triple("Settings", Icons.Default.Settings, "Account & app preferences"),
+                                Triple("Privacy Policy", Icons.Default.Security, "Data & privacy terms"),
+                                Triple("About", Icons.Default.Info, "Version & app details"),
+                                Triple("Support Center", Icons.Default.HelpOutline, "Help, FAQ & contact")
+                            )
+
+                            settingsOptions.forEach { (title, icon, subtitle) ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable {
+                                            Toast.makeText(context, "$title is coming soon!", Toast.LENGTH_SHORT).show()
+                                        }
+                                        .padding(horizontal = 8.dp, vertical = 9.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(34.dp)
+                                                .clip(CircleShape)
+                                                .background(if (isDarkMode) Color(0xFF2E323D) else Color(0xFFF1F3F5)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = icon,
+                                                contentDescription = title,
+                                                tint = if (isDarkMode) Color.White else Color(0xFF111418),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Column {
+                                            Text(
+                                                text = title,
+                                                fontWeight = FontWeight.SemiBold,
+                                                fontSize = 14.sp,
+                                                color = if (isDarkMode) Color.White else Color(0xFF111418)
+                                            )
+                                            Text(
+                                                text = subtitle,
+                                                fontSize = 11.sp,
+                                                color = SoftUITheme.TextSecondary
+                                            )
+                                        }
+                                    }
+
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(if (isDarkMode) Color(0xFF2A2E39) else Color(0xFFF1F3F5))
+                                            .padding(horizontal = 7.dp, vertical = 3.dp)
+                                    ) {
+                                        Text(
+                                            text = "Coming Soon",
+                                            color = if (isDarkMode) Color(0xFF94A3B8) else Color(0xFF64748B),
+                                            fontSize = 9.5.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             // 3D Neumorphic Log Out Button (Preserved per request)
             Box(
@@ -655,6 +796,227 @@ fun MenuScreen(
             Spacer(modifier = Modifier.height(36.dp))
         }
     }
+
+    // Facebook-style Profile & Page Switcher Bottom Sheet
+    if (showProfileSwitchSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showProfileSwitchSheet = false },
+            sheetState = profileSheetState,
+            containerColor = if (isDarkMode) Color(0xFF1E2128) else Color.White
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 8.dp)
+                    .padding(bottom = 28.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Switch Profile",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SoftUITheme.TextDark
+                    )
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFFE3F2FD))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "Facebook Style",
+                            fontSize = 11.sp,
+                            color = Color(0xFF0075FF),
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Personal Account Option
+                val isPersonalActive = activePage == null
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(if (isPersonalActive) 1.dp else 0.dp, RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (isPersonalActive) (if (isDarkMode) Color(0xFF282C37) else Color(0xFFF0F5FA)) else Color.Transparent)
+                        .border(
+                            width = 1.dp,
+                            color = if (isPersonalActive) Color(0xFF0075FF).copy(alpha = 0.5f) else Color.Transparent,
+                            shape = RoundedCornerShape(14.dp)
+                        )
+                        .clickable {
+                            viewModel.switchProfile(null)
+                            Toast.makeText(context, "Switched to ${currentUser?.fullName ?: "Personal Profile"}", Toast.LENGTH_SHORT).show()
+                            showProfileSwitchSheet = false
+                        }
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        FlikataAvatar(name = currentUser?.fullName ?: "User", avatarUrl = currentUser?.profilePic, size = 44.dp)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = currentUser?.fullName ?: "Personal Profile",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = SoftUITheme.TextDark
+                                )
+                                if (currentUser?.isVerified == true) {
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    VerifiedBadge(size = 16.dp)
+                                }
+                            }
+                            Text(
+                                text = "Personal Profile",
+                                fontSize = 12.sp,
+                                color = SoftUITheme.TextSecondary
+                            )
+                        }
+                    }
+                    if (isPersonalActive) {
+                        Box(
+                            modifier = Modifier
+                                .size(26.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF00C853)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Check, contentDescription = "Active", tint = Color.White, modifier = Modifier.size(16.dp))
+                        }
+                    }
+                }
+
+                if (pages.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "Pages you manage (${pages.size})",
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = SoftUITheme.TextSecondary,
+                        modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp)
+                    )
+
+                    pages.forEach { p ->
+                        val isThisActive = activePage?.id == p.id
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .shadow(if (isThisActive) 1.dp else 0.dp, RoundedCornerShape(14.dp))
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(if (isThisActive) (if (isDarkMode) Color(0xFF282C37) else Color(0xFFF0F5FA)) else Color.Transparent)
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isThisActive) Color(0xFF0075FF).copy(alpha = 0.5f) else Color.Transparent,
+                                    shape = RoundedCornerShape(14.dp)
+                                )
+                                .clickable {
+                                    viewModel.switchProfile(p)
+                                    Toast.makeText(context, "Switched to ${p.name}", Toast.LENGTH_SHORT).show()
+                                    showProfileSwitchSheet = false
+                                }
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                FlikataAvatar(name = p.name, avatarUrl = p.logoUrl, size = 44.dp)
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = p.name,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 15.sp,
+                                            color = SoftUITheme.TextDark
+                                        )
+                                        if (p.isVerified) {
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            VerifiedBadge(size = 16.dp)
+                                        }
+                                    }
+                                    Text(
+                                        text = "${p.category} · ${p.followersCount} followers",
+                                        fontSize = 12.sp,
+                                        color = SoftUITheme.TextSecondary
+                                    )
+                                }
+                            }
+                            if (isThisActive) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(26.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF00C853)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.Check, contentDescription = "Active", tint = Color.White, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Create Page Button
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .shadow(2.dp, RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (isDarkMode) Color(0xFF242730) else Color(0xFFE8F1FC))
+                        .border(1.dp, if (isDarkMode) Color(0x33FFFFFF) else Color(0x330075FF), RoundedCornerShape(14.dp))
+                        .clickable {
+                            showProfileSwitchSheet = false
+                            viewModel.navigateTo(Screen.CREATE_PAGE)
+                        }
+                        .padding(vertical = 12.dp, horizontal = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Brush.horizontalGradient(listOf(Color(0xFF0075FF), Color(0xFF0052D4)))),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Create", tint = Color.White, modifier = Modifier.size(20.dp))
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "Create New Page",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.5.sp,
+                            color = Color(0xFF0075FF)
+                        )
+                        Text(
+                            text = "Build an audience for your creator brand or business",
+                            fontSize = 12.sp,
+                            color = SoftUITheme.TextSecondary
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 /**
@@ -664,7 +1026,7 @@ fun MenuScreen(
 private fun MenuShortcutCard(
     icon: ImageVector,
     title: String,
-    subtitle: String,
+    subtitle: String? = null,
     iconBg: Color,
     iconTint: Color,
     badgeText: String? = null,
@@ -764,15 +1126,16 @@ private fun MenuShortcutCard(
                 color = SoftUITheme.TextDark
             )
 
-            Spacer(modifier = Modifier.height(3.dp))
-
-            Text(
-                text = subtitle,
-                fontSize = 11.5.sp,
-                color = SoftUITheme.TextSecondary,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
+            if (!subtitle.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(3.dp))
+                Text(
+                    text = subtitle,
+                    fontSize = 11.5.sp,
+                    color = SoftUITheme.TextSecondary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }

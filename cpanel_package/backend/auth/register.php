@@ -20,6 +20,21 @@ $password     = trim($input['password'] ?? '');
 $gender       = trim($input['gender'] ?? 'Male');
 $dob          = trim($input['dob'] ?? null);
 
+// Check Admin App Toggle: allow_registration
+try {
+    $fsStmt = $pdo->query("SELECT allow_registration FROM app_feature_settings WHERE id = 1");
+    $allowReg = $fsStmt ? $fsStmt->fetchColumn() : 1;
+    if ($allowReg !== false && (int)$allowReg === 0) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'status'  => 'error',
+            'success' => false,
+            'message' => 'রেজিস্ট্রেশন সাময়িকভাবে বন্ধ আছে'
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+} catch (Exception $e) {}
+
 if (!$fullName || (!$email && !$phone) || !$password) {
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode([

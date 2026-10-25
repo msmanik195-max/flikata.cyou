@@ -44,7 +44,7 @@ if ($action === 'approve') {
 
         // 3. Send Notification to User
         try {
-            $notifMsg = "আপনার ৳ " . number_format($amount, 2) . " উইথড্র রিকোয়েস্ট ({$methodName} - {$accountNumber}) সফলভাবে অনুমোদন করা হয়েছে এবং টাকা পাঠিয়ে দেওয়া হয়েছে।";
+            $notifMsg = "Your withdrawal request of ৳ " . number_format($amount, 2) . " ({$methodName} - {$accountNumber}) has been approved and sent.";
             $notif = $pdo->prepare("INSERT INTO notifications (user_id, sender_id, type, message, created_at) VALUES (?, ?, 'withdraw_approved', ?, NOW())");
             $notif->execute([$userId, 1, $notifMsg]);
         } catch (Exception $e) {}
@@ -92,12 +92,12 @@ if ($action === 'reject') {
 
         // 3. Insert refund transaction
         $tStmt = $pdo->prepare("INSERT INTO wallet_transactions (user_id, type, amount, description, status) VALUES (?, 'refund', ?, ?, 'completed')");
-        $refDesc = "উইথড্র বাতিল রিফান্ড: ৳ " . number_format($amount, 2) . ($reason ? " (কারণ: {$reason})" : "");
+        $refDesc = "Withdrawal rejected refund: ৳ " . number_format($amount, 2) . ($reason ? " (Reason: {$reason})" : "");
         $tStmt->execute([$userId, $amount, $refDesc]);
 
         // 4. Send Notification
         try {
-            $notifMsg = "আপনার ৳ " . number_format($amount, 2) . " উইথড্র আবেদন বাতিল করা হয়েছে এবং টাকা আপনার ওয়ালেটে ফেরত দেওয়া হয়েছে।" . ($reason ? " কারণ: {$reason}" : "");
+            $notifMsg = "Your withdrawal request of ৳ " . number_format($amount, 2) . " was rejected and refunded to your wallet." . ($reason ? " Reason: {$reason}" : "");
             $notif = $pdo->prepare("INSERT INTO notifications (user_id, sender_id, type, message, created_at) VALUES (?, ?, 'withdraw_rejected', ?, NOW())");
             $notif->execute([$userId, 1, $notifMsg]);
         } catch (Exception $e) {}

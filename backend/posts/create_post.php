@@ -37,12 +37,28 @@ if (!$content && !$imageUrl && !$videoUrl) {
     exit;
 }
 
+$pageId = !empty($input['page_id']) ? (int)preg_replace('/[^0-9]/', '', (string)$input['page_id']) : null;
+$pageRow = null;
+if ($pageId) {
+    $pStmt = $pdo->prepare("SELECT * FROM pages WHERE id = ?");
+    $pStmt->execute([$pageId]);
+    $pageRow = $pStmt->fetch() ?: null;
+    if (!$pageRow) {
+        $pageId = null;
+    }
+}
+
+$effectiveAuthorName   = $pageRow ? $pageRow['name'] : $user['full_name'];
+$effectiveAuthorAvatar = $pageRow ? ($pageRow['logo_url'] ?: '') : ($user['profile_pic'] ?: '');
+$effectiveIsVerified   = $pageRow ? (bool)$pageRow['is_verified'] : (bool)$user['is_verified'];
+
 $stmt = $pdo->prepare("
-    INSERT INTO posts (user_id, content, image_url, video_url, privacy, bg_color, bucket_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO posts (user_id, page_id, content, image_url, video_url, privacy, bg_color, bucket_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 ");
 $stmt->execute([
     $user['id'],
+    $pageId,
     $content ?: null,
     $imageUrl ?: null,
     $videoUrl ?: null,
@@ -53,7 +69,7 @@ $stmt->execute([
 
 $postId = $pdo->lastInsertId();
 
-// If this post has a video, automatically make it available in Reels as well (without duplicates)
+// If this post has a video, automatically make it available in Reels as well
 if ($videoUrl) {
     $chkStmt = $pdo->prepare("SELECT id FROM reels WHERE media_url = ? LIMIT 1");
     $chkStmt->execute([$videoUrl]);
@@ -65,8 +81,8 @@ if ($videoUrl) {
         $rStmt->execute([
             $user['id'],
             $videoUrl,
-            $content ?: 'New Reel by ' . $user['full_name'],
-            'Original Audio - ' . $user['full_name'],
+            $content ?: ('New Reel by ' . $effectiveAuthorName),
+            'Original Audio - ' . $effectiveAuthorName,
             $bucketId
         ]);
     }
@@ -74,10 +90,11 @@ if ($videoUrl) {
 
 $postObj = [
     'id'               => (string)$postId,
-    'user_id'          => (string)$user['id'],
-    'author_name'      => $user['full_name'],
-    'author_avatar'    => $user['profile_pic'] ?: '',
-    'is_verified'      => (bool)$user['is_verified'],
+    'user_id'          => $pageId ? "page_{$pageId}" : (string)$user['id'],
+    'page_id'          => $pageId ? (string)$pageId : null,
+    'author_name'      => $effectiveAuthorName,
+    'author_avatar'    => $effectiveAuthorAvatar,
+    'is_verified'      => $effectiveIsVerified,
     'timestamp'        => 'Just now',
     'content'          => $content ?: '',
     'background_style' => $bgColor ?: null,

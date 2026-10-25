@@ -18,27 +18,50 @@ $page = max(1, (int)($_GET['page'] ?? 1));
 $limit = min(50, max(1, (int)($_GET['limit'] ?? 20)));
 $offset = ($page - 1) * $limit;
 
-$stmt = $pdo->prepare("
-    SELECT 
-        p.*,
-        u.full_name AS author_name,
-        u.profile_pic AS author_avatar,
-        u.is_verified AS author_verified,
-        (SELECT COUNT(*) FROM post_likes WHERE post_id = p.id AND user_id = ?) AS is_liked,
-        (SELECT emoji FROM post_reactions WHERE post_id = p.id AND user_id = ? LIMIT 1) AS user_reaction,
-        (SELECT COUNT(*) FROM comments WHERE post_id = p.id) AS real_comments_count
-    FROM posts p
-    JOIN users u ON p.user_id = u.id
-    WHERE (
-        p.privacy = 'Public' 
-        OR p.privacy IS NULL 
-        OR p.privacy = '' 
-        OR p.user_id = ?
-    )
-    ORDER BY p.id DESC
-    LIMIT ? OFFSET ?
-");
-$stmt->execute([$currentUserId, $currentUserId, $currentUserId, $limit, $offset]);
+$pageIdParam = (int)($_GET['page_id'] ?? 0);
+
+if ($pageIdParam > 0) {
+    $stmt = $pdo->prepare("
+        SELECT 
+            p.*,
+            COALESCE(pg.name, u.full_name) AS author_name,
+            COALESCE(pg.logo_url, u.profile_pic) AS author_avatar,
+            COALESCE(pg.is_verified, u.is_verified) AS author_verified,
+            (SELECT COUNT(*) FROM post_likes WHERE post_id = p.id AND user_id = ?) AS is_liked,
+            (SELECT emoji FROM post_reactions WHERE post_id = p.id AND user_id = ? LIMIT 1) AS user_reaction,
+            (SELECT COUNT(*) FROM comments WHERE post_id = p.id) AS real_comments_count
+        FROM posts p
+        JOIN users u ON p.user_id = u.id
+        LEFT JOIN pages pg ON p.page_id = pg.id
+        WHERE p.page_id = ?
+        ORDER BY p.id DESC
+        LIMIT ? OFFSET ?
+    ");
+    $stmt->execute([$currentUserId, $currentUserId, $pageIdParam, $limit, $offset]);
+} else {
+    $stmt = $pdo->prepare("
+        SELECT 
+            p.*,
+            COALESCE(pg.name, u.full_name) AS author_name,
+            COALESCE(pg.logo_url, u.profile_pic) AS author_avatar,
+            COALESCE(pg.is_verified, u.is_verified) AS author_verified,
+            (SELECT COUNT(*) FROM post_likes WHERE post_id = p.id AND user_id = ?) AS is_liked,
+            (SELECT emoji FROM post_reactions WHERE post_id = p.id AND user_id = ? LIMIT 1) AS user_reaction,
+            (SELECT COUNT(*) FROM comments WHERE post_id = p.id) AS real_comments_count
+        FROM posts p
+        JOIN users u ON p.user_id = u.id
+        LEFT JOIN pages pg ON p.page_id = pg.id
+        WHERE (
+            p.privacy = 'Public' 
+            OR p.privacy IS NULL 
+            OR p.privacy = '' 
+            OR p.user_id = ?
+        )
+        ORDER BY p.id DESC
+        LIMIT ? OFFSET ?
+    ");
+    $stmt->execute([$currentUserId, $currentUserId, $currentUserId, $limit, $offset]);
+}
 $posts = $stmt->fetchAll();
 
 $formattedPosts = [];
@@ -55,10 +78,14 @@ foreach ($posts as $row) {
     $cStmt->execute([$row['id']]);
     $comments = $cStmt->fetchAll();
 
+    $postOwnerId = !empty($row['page_id']) ? "page_" . $row['page_id'] : (string)$row['user_id'];
+
     $formattedPosts[] = [
         'id'               => (string)$row['id'],
-        'user_id'          => (string)$row['user_id'],
-        'userId'           => (string)$row['user_id'],
+        'user_id'          => $postOwnerId,
+        'userId'           => $postOwnerId,
+        'page_id'          => !empty($row['page_id']) ? (string)$row['page_id'] : null,
+        'pageId'           => !empty($row['page_id']) ? (string)$row['page_id'] : null,
         'author_name'      => $row['author_name'],
         'authorName'       => $row['author_name'],
         'author_avatar'    => $row['author_avatar'] ?: '',

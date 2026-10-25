@@ -12,6 +12,21 @@ $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
 $identifier = trim($input['identifier'] ?? $input['email_or_phone'] ?? $input['email'] ?? $input['phone'] ?? '');
 $password   = trim($input['password'] ?? '');
 
+// Check Admin App Toggle: allow_login
+try {
+    $fsStmt = $pdo->query("SELECT allow_login FROM app_feature_settings WHERE id = 1");
+    $allowLogin = $fsStmt ? $fsStmt->fetchColumn() : 1;
+    if ($allowLogin !== false && (int)$allowLogin === 0) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'status'  => 'error',
+            'success' => false,
+            'message' => 'লগইন সাময়িকভাবে বন্ধ আছে'
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+} catch (Exception $e) {}
+
 if (!$identifier || !$password) {
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode([
@@ -42,7 +57,7 @@ if (!empty($user['is_banned'])) {
     echo json_encode([
         'status'  => 'error',
         'success' => false,
-        'message' => 'আপনার একাউন্টটি এডমিন কর্তৃক নিষিদ্ধ (Banned) করা হয়েছে। দয়া করে সাপোর্টে যোগাযোগ করুন।'
+        'message' => 'Your account has been suspended by the administrator. Please contact support.'
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }

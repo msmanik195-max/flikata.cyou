@@ -1,9 +1,15 @@
 package com.example.ui.viewmodel
 
 import android.app.Application
+import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
+import java.util.Locale
 import com.example.data.local.FlikataDatabase
 import com.example.data.model.ChatMessage
 import com.example.data.model.FlikataNotification
@@ -16,6 +22,7 @@ import com.example.data.model.User
 import com.example.data.repository.FlikataRepository
 import androidx.compose.foundation.lazy.LazyListState
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -49,29 +56,411 @@ enum class Screen {
     WITHDRAW,
     ADMIN_PANEL,
     MARKETPLACE,
-    DASHBOARD
+    DASHBOARD,
+    HISTORY,
+    SAVED,
+    PAGES,
+    CREATE_PAGE,
+    PAGE_PROFILE,
+    LEADERBOARD
 }
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val db = FlikataDatabase.getDatabase(application)
-    val repository = FlikataRepository(db.userDao(), db.postDao(), db.chatDao())
+    val repository = FlikataRepository(db.userDao(), db.postDao(), db.chatDao(), db.historyDao(), db.savedDao(), db.pageDao())
+
+    val pages = MutableStateFlow<List<com.example.data.model.FlikataPage>>(emptyList())
+    val activePage = MutableStateFlow<com.example.data.model.FlikataPage?>(null)
+    val selectedPageProfile = MutableStateFlow<com.example.data.model.FlikataPage?>(null)
+    val isLoadingPages = MutableStateFlow(false)
+    val maxPagesPerProfile = MutableStateFlow(5)
+
+    // Leaderboard state
+    val leaderboardLimit = MutableStateFlow(20)
+    val leaderboardUsers = MutableStateFlow<List<com.example.data.model.LeaderboardUser>>(emptyList())
+    val isLeaderboardLoading = MutableStateFlow(false)
 
     val isDarkMode = MutableStateFlow(false)
     val highlightedPostId = MutableStateFlow<String?>(null)
     val selectedUserProfileId = MutableStateFlow<String?>(null)
     val selectedUserProfileName = MutableStateFlow<String?>(null)
     val selectedUserProfileData = MutableStateFlow<com.example.data.model.UserProfileData?>(null)
+    val selectedUserFollowersCount = MutableStateFlow(0)
+    val selectedUserFollowingCount = MutableStateFlow(0)
+    val isFollowingSelectedUser = MutableStateFlow(false)
     val targetReelId = MutableStateFlow<String?>(null)
 
     val dashboardData = MutableStateFlow<com.example.data.model.DashboardData?>(null)
     val isLoadingDashboard = MutableStateFlow(false)
     val dashboardPeriod = MutableStateFlow("7d")
 
+    val marketplaceProducts = MutableStateFlow<List<com.example.data.model.MarketplaceProduct>>(emptyList())
+    val selectedMarketplaceCategory = MutableStateFlow("All")
+    val marketplaceSearchQuery = MutableStateFlow("")
+    val isLoadingMarketplace = MutableStateFlow(false)
+
     val audioCallManager by lazy { com.example.data.audio.AudioCallManager(application) }
     val incomingCallState = MutableStateFlow<com.example.data.model.IncomingCallData?>(null)
     val activeCallState = MutableStateFlow<ActiveCallState?>(null)
     private var callPollingJob: kotlinx.coroutines.Job? = null
+
+    val historyTab = MutableStateFlow("VIDEO") // "IMAGE", "TEXT", "VIDEO"
+    val savedTab = MutableStateFlow("IMAGE") // "IMAGE", "VIDEO", "PRODUCT"
+
+    // In-App Software Update State
+    val appUpdateInfo = MutableStateFlow<com.example.data.model.AppUpdateResponse?>(null)
+    val isUpdateAvailable = MutableStateFlow(false)
+    val isUpdateMandatory = MutableStateFlow(false)
+    val isCheckingUpdate = MutableStateFlow(false)
+    val isDownloadingUpdate = MutableStateFlow(false)
+    val updateDownloadProgress = MutableStateFlow(0)
+    val updateDownloadStatus = MutableStateFlow("")
+    val downloadedApkFile = MutableStateFlow<File?>(null)
+    val updateErrorMessage = MutableStateFlow<String?>(null)
+
+    fun checkForAppUpdates(onResult: ((Boolean) -> Unit)? = null) {
+        viewModelScope.launch {
+            isCheckingUpdate.value = true
+            try {
+                val currentCode = com.example.BuildConfig.VERSION_CODE
+                val currentName = com.example.BuildConfig.VERSION_NAME
+                val result = repository.checkAppUpdate(currentCode, currentName)
+                if (result.isSuccess) {
+                    val update = result.getOrNull()
+                    if (update != null && update.updateAvailable) {
+                        appUpdateInfo.value = update
+                        isUpdateAvailable.value = true
+                        isUpdateMandatory.value = update.isForce
+                        onResult?.invoke(true)
+                        return@launch
+                    }
+                }
+                onResult?.invoke(false)
+            } catch (e: Exception) {
+                android.util.Log.w("AppUpdate", "Check update failed: ${e.message}")
+                onResult?.invoke(false)
+            } finally {
+                isCheckingUpdate.value = false
+            }
+        }
+    }
+
+    fun startInAppUpdateDownload(context: Context) {
+        val update = appUpdateInfo.value ?: return
+        val url = update.apkUrl
+        if (url.isBlank()) return
+
+        if (isDownloadingUpdate.value) return
+        isDownloadingUpdate.value = true
+        updateDownloadProgress.value = 0
+        updateDownloadStatus.value = "Starting download..."
+        updateErrorMessage.value = null
+
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val apkDir = File(context.cacheDir, "apk").apply { mkdirs() }
+                val targetFile = File(apkDir, "flikata_v${update.latestVersionCode}.apk")
+                if (targetFile.exists()) {
+                    targetFile.delete()
+                }
+
+                val request = okhttp3.Request.Builder()
+                    .url(url)
+                    .build()
+
+                val response = com.example.data.remote.ApiClient.okHttpClient.newCall(request).execute()
+                if (!response.isSuccessful) {
+                    throw IOException("Server returned HTTP ${response.code}")
+                }
+
+                val body = response.body ?: throw IOException("Empty response body")
+                val totalLength = body.contentLength()
+                val inputStream = body.byteStream()
+                val outputStream = FileOutputStream(targetFile)
+
+                val buffer = ByteArray(8192)
+                var bytesRead: Int
+                var totalBytesRead = 0L
+
+                while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                    outputStream.write(buffer, 0, bytesRead)
+                    totalBytesRead += bytesRead
+                    if (totalLength > 0) {
+                        val progress = ((totalBytesRead * 100) / totalLength).toInt().coerceIn(0, 100)
+                        updateDownloadProgress.value = progress
+                        val currentMb = String.format(Locale.US, "%.1f", totalBytesRead / (1024f * 1024f))
+                        val totalMb = String.format(Locale.US, "%.1f", totalLength / (1024f * 1024f))
+                        updateDownloadStatus.value = "$currentMb MB / $totalMb MB ($progress%)"
+                    } else {
+                        val currentMb = String.format(Locale.US, "%.1f", totalBytesRead / (1024f * 1024f))
+                        updateDownloadStatus.value = "$currentMb MB downloaded"
+                    }
+                }
+
+                outputStream.flush()
+                outputStream.close()
+                inputStream.close()
+
+                downloadedApkFile.value = targetFile
+                updateDownloadProgress.value = 100
+                updateDownloadStatus.value = "Download complete! Opening installer..."
+                isDownloadingUpdate.value = false
+
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    launchApkInstaller(context, targetFile)
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("AppUpdate", "Download error: ${e.message}", e)
+                isDownloadingUpdate.value = false
+                updateErrorMessage.value = "Download failed: ${e.message}"
+                updateDownloadStatus.value = "Failed to download update."
+            }
+        }
+    }
+
+    fun launchApkInstaller(context: Context, file: File? = downloadedApkFile.value) {
+        val apk = file ?: downloadedApkFile.value ?: return
+        try {
+            val apkUri = androidx.core.content.FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.provider",
+                apk
+            )
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(apkUri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            android.util.Log.e("AppUpdate", "Launch installer error: ${e.message}", e)
+            updateErrorMessage.value = "Installer error: ${e.message}"
+        }
+    }
+
+    val imageHistory = repository.getViewHistory("IMAGE")
+    val textHistory = repository.getViewHistory("TEXT")
+    val videoHistory = repository.getViewHistory("VIDEO")
+
+    val savedImages = repository.getSavedItems("IMAGE")
+    val savedVideos = repository.getSavedItems("VIDEO")
+    val savedProducts = repository.getSavedItems("PRODUCT")
+
+    fun recordPostViewHistory(post: com.example.data.model.Post) {
+        val itemType = if (post.isVideo || !post.videoUrl.isNullOrBlank()) {
+            "VIDEO"
+        } else if (!post.imageUrl.isNullOrBlank()) {
+            "IMAGE"
+        } else {
+            "TEXT"
+        }
+        viewModelScope.launch {
+            repository.recordViewHistory(
+                id = "post_${post.id}",
+                itemType = itemType,
+                titleOrContent = post.content.ifBlank { "Post by ${post.authorName}" },
+                authorName = post.authorName,
+                authorAvatar = post.authorAvatar,
+                isVerified = post.isVerified,
+                mediaUrl = if (itemType == "VIDEO") post.videoUrl else post.imageUrl,
+                timestampText = post.timestamp
+            )
+            try {
+                repository.recordPostView(post.id)
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun recordReelViewHistory(reel: com.example.data.model.ReelModel) {
+        viewModelScope.launch {
+            repository.recordViewHistory(
+                id = "reel_${reel.id}",
+                itemType = "VIDEO",
+                titleOrContent = reel.caption.ifBlank { "Reel by ${reel.authorName}" },
+                authorName = reel.authorName,
+                authorAvatar = reel.authorAvatar,
+                isVerified = reel.isVerified,
+                mediaUrl = reel.mediaUrl,
+                timestampText = "Recently"
+            )
+            try {
+                repository.recordReelView(reel.id)
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun deleteHistoryItem(id: String) {
+        viewModelScope.launch {
+            repository.deleteViewHistory(id)
+        }
+    }
+
+    fun clearHistory(type: String) {
+        viewModelScope.launch {
+            repository.clearViewHistory(type)
+        }
+    }
+
+    fun toggleSavePost(post: com.example.data.model.Post) {
+        viewModelScope.launch {
+            val key = "post_${post.id}"
+            val isSaved = repository.isItemSavedDirect(key) || repository.isItemSavedDirect(post.id)
+            if (isSaved) {
+                repository.unsaveItem(key)
+                repository.unsaveItem(post.id)
+            } else {
+                val itemType = if (post.isVideo || !post.videoUrl.isNullOrBlank()) "VIDEO" else "IMAGE"
+                repository.saveItem(
+                    id = key,
+                    itemType = itemType,
+                    title = post.content.ifBlank { "Post by ${post.authorName}" },
+                    subtitleOrPrice = post.timestamp,
+                    mediaUrl = if (itemType == "VIDEO") post.videoUrl else post.imageUrl,
+                    authorOrSellerName = post.authorName,
+                    authorOrSellerAvatar = post.authorAvatar,
+                    isVerified = post.isVerified,
+                    originalId = post.id
+                )
+            }
+        }
+    }
+
+    fun toggleSaveProduct(product: com.example.data.model.MarketplaceProduct) {
+        viewModelScope.launch {
+            val key = "prod_${product.id}"
+            val isSaved = repository.isItemSavedDirect(key) || repository.isItemSavedDirect(product.id)
+            if (isSaved) {
+                repository.unsaveItem(key)
+                repository.unsaveItem(product.id)
+            } else {
+                repository.saveItem(
+                    id = key,
+                    itemType = "PRODUCT",
+                    title = product.title,
+                    subtitleOrPrice = product.formattedPrice,
+                    mediaUrl = product.imageUrl,
+                    authorOrSellerName = product.sellerName,
+                    authorOrSellerAvatar = product.sellerAvatar,
+                    isVerified = product.sellerVerified,
+                    originalId = product.id
+                )
+            }
+        }
+    }
+
+    fun unsaveItem(id: String) {
+        viewModelScope.launch {
+            repository.unsaveItem(id)
+        }
+    }
+
+    fun isPostSaved(postId: String): Flow<Boolean> = repository.isItemSaved("post_$postId")
+    fun isProductSaved(productId: String): Flow<Boolean> = repository.isItemSaved("prod_$productId")
+
+    fun loadPages() {
+        viewModelScope.launch {
+            isLoadingPages.value = true
+            val list = repository.getPages()
+            pages.value = list
+            isLoadingPages.value = false
+            loadPageSettings()
+        }
+    }
+
+    fun loadPageSettings() {
+        viewModelScope.launch {
+            val limit = repository.getPageSettings()
+            maxPagesPerProfile.value = limit
+        }
+    }
+
+    fun updateMaxPagesPerProfile(newLimit: Int) {
+        maxPagesPerProfile.value = newLimit
+        viewModelScope.launch {
+            repository.updatePageSettings(newLimit)
+        }
+    }
+
+    fun loadLeaderboardSettings() {
+        viewModelScope.launch {
+            val limit = repository.getLeaderboardSettings()
+            leaderboardLimit.value = limit
+            loadLeaderboard()
+        }
+    }
+
+    fun loadLeaderboard() {
+        viewModelScope.launch {
+            isLeaderboardLoading.value = true
+            val users = repository.getLeaderboard(leaderboardLimit.value)
+            leaderboardUsers.value = users
+            isLeaderboardLoading.value = false
+        }
+    }
+
+    fun updateLeaderboardLimit(newLimit: Int) {
+        leaderboardLimit.value = newLimit
+        viewModelScope.launch {
+            repository.updateLeaderboardSettings(newLimit)
+            loadLeaderboard()
+        }
+    }
+
+    fun switchProfile(page: com.example.data.model.FlikataPage?) {
+        activePage.value = page
+        val targetName = page?.name ?: currentUser.value?.fullName ?: "Personal Profile"
+        android.widget.Toast.makeText(getApplication(), "Switched to $targetName", android.widget.Toast.LENGTH_SHORT).show()
+    }
+
+    suspend fun createPage(
+        name: String,
+        category: String,
+        bio: String,
+        logoUrl: String?,
+        bannerUrl: String?,
+        email: String?,
+        phone: String?,
+        website: String?
+    ): Result<com.example.data.model.FlikataPage> {
+        if (!featureSettings.value.allowPageCreation) {
+            featureNoticeDialog.value = "পেজ তৈরি করার সুবিধা সাময়িকভাবে বন্ধ আছে।"
+            return Result.failure(Exception("পেজ তৈরি করার সুবিধা সাময়িকভাবে বন্ধ আছে।"))
+        }
+        val res = repository.createPage(
+            name = name,
+            category = category,
+            bio = bio,
+            logoUrl = logoUrl,
+            bannerUrl = bannerUrl,
+            email = email,
+            phone = phone,
+            website = website
+        )
+        if (res.isSuccess) {
+            val created = res.getOrNull()
+            if (created != null) {
+                pages.value = listOf(created) + pages.value.filter { it.id != created.id }
+                activePage.value = created
+                selectedPageProfile.value = created
+            }
+        }
+        return res
+    }
+
+    fun openPageProfile(page: com.example.data.model.FlikataPage) {
+        selectedPageProfile.value = page
+        navigateTo(Screen.PAGE_PROFILE)
+    }
+
+    fun followPage(pageId: String) {
+        viewModelScope.launch {
+            repository.followPage(pageId)
+            pages.value = pages.value.map {
+                if (it.id == pageId) it.copy(followersCount = it.followersCount + 1) else it
+            }
+        }
+    }
 
     fun loadDashboard(period: String = dashboardPeriod.value) {
         dashboardPeriod.value = period
@@ -96,6 +485,83 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             loadDashboard(dashboardPeriod.value)
         }
         return res
+    }
+
+    fun loadMarketplaceProducts(
+        category: String = selectedMarketplaceCategory.value,
+        query: String = marketplaceSearchQuery.value
+    ) {
+        selectedMarketplaceCategory.value = category
+        marketplaceSearchQuery.value = query
+        viewModelScope.launch {
+            isLoadingMarketplace.value = true
+            val res = repository.getMarketplaceProducts(
+                category = category,
+                query = query
+            )
+            if (res.isSuccess) {
+                marketplaceProducts.value = res.getOrNull() ?: emptyList()
+            }
+            isLoadingMarketplace.value = false
+        }
+    }
+
+    suspend fun createMarketplaceProduct(
+        title: String,
+        price: Double,
+        category: String,
+        condition: String,
+        location: String,
+        description: String,
+        imageUrl: String?
+    ): Result<com.example.data.model.MarketplaceProduct> {
+        val user = currentUser.value ?: repository.getLoggedInUserDirect()
+        val effectiveUserId = user?.id?.removePrefix("user_")?.trim()?.ifBlank { null } ?: "1"
+        val res = repository.createMarketplaceProduct(
+            userId = effectiveUserId,
+            title = title,
+            price = price,
+            category = category,
+            condition = condition,
+            location = location,
+            description = description,
+            imageUrl = imageUrl
+        )
+        if (res.isSuccess) {
+            val created = res.getOrNull()!!
+            marketplaceProducts.value = listOf(created) + marketplaceProducts.value
+        }
+        return res
+    }
+
+    val activeMarketplaceInquiryProduct = MutableStateFlow<com.example.data.model.MarketplaceProduct?>(null)
+
+    fun deleteMarketplaceProduct(productId: String) {
+        val user = currentUser.value
+        val effectiveUserId = user?.id?.removePrefix("user_")?.trim() ?: "1"
+        viewModelScope.launch {
+            repository.deleteMarketplaceProduct(productId, effectiveUserId)
+            marketplaceProducts.value = marketplaceProducts.value.filter { it.id != productId }
+        }
+    }
+
+    fun messageSeller(product: com.example.data.model.MarketplaceProduct, customMessage: String? = null) {
+        activeMarketplaceInquiryProduct.value = product
+        val cleanPartnerId = product.userId.removePrefix("user_").trim().ifBlank { "1" }
+        openChatWithUser(
+            name = product.sellerName,
+            avatar = product.sellerAvatar ?: "",
+            isVerified = product.sellerVerified,
+            userId = cleanPartnerId
+        )
+        val greeting = customMessage?.ifBlank { null }
+            ?: "Hi ${product.sellerName}, is this item still available? [${product.title} - ${product.formattedPrice}]"
+        sendMessage(
+            partnerId = cleanPartnerId,
+            partnerName = product.sellerName,
+            partnerAvatar = product.sellerAvatar ?: "",
+            messageText = greeting
+        )
     }
 
     fun openPost(postId: String) {
@@ -128,6 +594,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         if (!profile?.fullName.isNullOrBlank()) {
                             selectedUserProfileName.value = profile!!.fullName
                         }
+                        selectedUserFollowersCount.value = profile?.totalFollowers ?: 0
+                        selectedUserFollowingCount.value = profile?.totalFollowing ?: 0
+                        isFollowingSelectedUser.value = profile?.isFollowedByMe == true
                     }
                 }
             }
@@ -139,9 +608,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         selectedUserProfileId.value = null
         selectedUserProfileName.value = null
         selectedUserProfileData.value = null
+        selectedUserFollowersCount.value = 0
+        selectedUserFollowingCount.value = 0
+        isFollowingSelectedUser.value = false
+    }
+
+    fun toggleFollowUser(targetUserId: Int) {
+        if (targetUserId <= 0) return
+        val currentlyFollowing = isFollowingSelectedUser.value
+        val newFollowing = !currentlyFollowing
+        isFollowingSelectedUser.value = newFollowing
+
+        // Instant optimistic update for live follower count (+1 or -1)
+        val curCount = selectedUserFollowersCount.value
+        val newCount = if (newFollowing) curCount + 1 else (curCount - 1).coerceAtLeast(0)
+        selectedUserFollowersCount.value = newCount
+
+        viewModelScope.launch {
+            val result = repository.toggleFollowUser(targetUserId)
+            if (result.isSuccess) {
+                val data = result.getOrNull()
+                if (data != null) {
+                    isFollowingSelectedUser.value = data.isFollowing
+                    selectedUserFollowersCount.value = data.followersCount
+                }
+            }
+        }
     }
 
     fun openReel(reelId: String) {
+        if (!featureSettings.value.allowReels) {
+            featureNoticeDialog.value = "রিলস সুবিধা সাময়িকভাবে বন্ধ আছে"
+            return
+        }
         targetReelId.value = reelId
         navigateTo(Screen.REELS)
     }
@@ -149,6 +648,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val homeListState = LazyListState()
 
     init {
+        refreshFeatureSettings()
         viewModelScope.launch {
             repository.allPosts.collect { currentPosts ->
                 val videoReels = currentPosts.filter { !it.videoUrl.isNullOrBlank() }.map { p ->
@@ -212,8 +712,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // Initial load of notifications
+        // Initial load of notifications and pages
         loadNotifications()
+        viewModelScope.launch {
+            repository.getAllPagesFlow().collect { list ->
+                if (list.isNotEmpty()) {
+                    pages.value = list
+                }
+            }
+        }
+        loadPages()
     }
 
     fun toggleDarkMode() {
@@ -304,7 +812,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         initialValue = null
     )
 
-    val posts: StateFlow<List<Post>> = repository.allPosts.stateIn(
+    val featureSettings = MutableStateFlow(com.example.data.model.FeatureSettingsResponse())
+    val featureNoticeDialog = MutableStateFlow<String?>(null)
+
+    fun refreshFeatureSettings() {
+        viewModelScope.launch {
+            val res = repository.fetchFeatureSettings()
+            res.getOrNull()?.let {
+                featureSettings.value = it
+            }
+        }
+    }
+
+    val posts: StateFlow<List<Post>> = kotlinx.coroutines.flow.combine(
+        repository.allPosts,
+        featureSettings
+    ) { allList, settings ->
+        allList.filter { post ->
+            val hasVideo = !post.videoUrl.isNullOrBlank()
+            val hasImage = !post.imageUrl.isNullOrBlank() && !hasVideo
+            val isTextOnly = !hasVideo && !hasImage
+
+            when {
+                hasVideo -> settings.feedShowVideoPosts
+                hasImage -> settings.feedShowImagePosts
+                isTextOnly -> settings.feedShowTextPosts
+                else -> true
+            }
+        }
+    }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = emptyList()
@@ -320,6 +856,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val stories: StateFlow<List<Story>> = _stories.asStateFlow()
 
     fun addStory(storyImage: String?, textContent: String?, backgroundColor: String?) {
+        if (featureSettings.value.dailyStoryLimit == 0) {
+            featureNoticeDialog.value = "পোস্ট করা সাময়িকভাবে বন্ধ আছে"
+            return
+        }
         _currentScreen.value = Screen.HOME
         _postUploadState.value = PostUploadState(
             isUploading = true,
@@ -710,17 +1250,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val editBio = MutableStateFlow("")
     val editProfilePic = MutableStateFlow("")
     val editCoverPic = MutableStateFlow("")
-    val editOccupation = MutableStateFlow("")
+    val editOccupation = MutableStateFlow("Digital Creator")
+    val editEducation = MutableStateFlow("Studied at University")
     val editGender = MutableStateFlow("Male")
-    val editDob = MutableStateFlow("")
-    val editEmail = MutableStateFlow("")
-    val editPhone = MutableStateFlow("")
-    val editLocation = MutableStateFlow("")
-    val editWebsite = MutableStateFlow("")
+    val editDob = MutableStateFlow("15/08/1998")
+    val editEmail = MutableStateFlow("marufma143g@gmail.com")
+    val editPhone = MutableStateFlow("+880 1712-345678")
+    val editLocation = MutableStateFlow("Dhaka, Bangladesh")
+    val editWebsite = MutableStateFlow("https://flikata.cyou")
     val editNid = MutableStateFlow("")
     val isSavingProfile = MutableStateFlow(false)
 
-    // Privacy Toggles
+    // About Section Visibility Toggles (Toggled ON = Visible on profile About cards if filled)
+    val showPhoneInAbout = MutableStateFlow(true)
+    val showEmailInAbout = MutableStateFlow(true)
+    val showBirthdayInAbout = MutableStateFlow(true)
+    val showGenderInAbout = MutableStateFlow(true)
+    val showLocationInAbout = MutableStateFlow(true)
+    val showOccupationInAbout = MutableStateFlow(true)
+    val showEducationInAbout = MutableStateFlow(true)
+    val showWebsiteInAbout = MutableStateFlow(true)
+
+    // Privacy Toggles (legacy compatibility)
     val hideUsername = MutableStateFlow(true)
     val hidePhone = MutableStateFlow(false)
     val hideEmail = MutableStateFlow(false)
@@ -730,12 +1281,44 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val hideLocation = MutableStateFlow(false)
 
     init {
+        loadAboutPreferences()
         viewModelScope.launch {
             repository.getLoggedInUserDirect()
             repository.seedInitialDataIfEmpty()
             repository.syncPostsFromServer()
             syncStories()
             syncReelsFromServer()
+        }
+    }
+
+    private fun loadAboutPreferences() {
+        try {
+            val prefs = getApplication<Application>().getSharedPreferences("flikata_about_prefs", android.content.Context.MODE_PRIVATE)
+            showPhoneInAbout.value = prefs.getBoolean("show_phone", true)
+            showEmailInAbout.value = prefs.getBoolean("show_email", true)
+            showBirthdayInAbout.value = prefs.getBoolean("show_dob", true)
+            showGenderInAbout.value = prefs.getBoolean("show_gender", true)
+            showLocationInAbout.value = prefs.getBoolean("show_location", true)
+            showOccupationInAbout.value = prefs.getBoolean("show_occupation", true)
+            showEducationInAbout.value = prefs.getBoolean("show_education", true)
+            showWebsiteInAbout.value = prefs.getBoolean("show_website", true)
+        } catch (_: Exception) {}
+    }
+
+    fun setAboutToggle(field: String, enabled: Boolean) {
+        try {
+            val prefs = getApplication<Application>().getSharedPreferences("flikata_about_prefs", android.content.Context.MODE_PRIVATE)
+            prefs.edit().putBoolean(field, enabled).apply()
+        } catch (_: Exception) {}
+        when (field) {
+            "show_phone" -> showPhoneInAbout.value = enabled
+            "show_email" -> showEmailInAbout.value = enabled
+            "show_dob" -> showBirthdayInAbout.value = enabled
+            "show_gender" -> showGenderInAbout.value = enabled
+            "show_location" -> showLocationInAbout.value = enabled
+            "show_occupation" -> showOccupationInAbout.value = enabled
+            "show_education" -> showEducationInAbout.value = enabled
+            "show_website" -> showWebsiteInAbout.value = enabled
         }
     }
 
@@ -747,6 +1330,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun navigateTo(screen: Screen) {
         if (screen == _currentScreen.value) return
+
+        refreshFeatureSettings()
+
+        if (screen == Screen.CREATE_PAGE && (!featureSettings.value.allowPageCreation || featureSettings.value.defaultPageCreateLimit == 0)) {
+            featureNoticeDialog.value = "পেজ তৈরি করার সুবিধা সাময়িকভাবে বন্ধ আছে।"
+            return
+        }
+        if (screen == Screen.REGISTER && !featureSettings.value.allowRegistration) {
+            featureNoticeDialog.value = "রেজিস্ট্রেশন সাময়িকভাবে বন্ধ আছে"
+            return
+        }
+        if ((screen == Screen.CHATS || screen == Screen.CHAT_DETAIL) && !featureSettings.value.allowChat) {
+            featureNoticeDialog.value = "চ্যাট অপশন সাময়িকভাবে বন্ধ আছে"
+            return
+        }
 
         val current = _currentScreen.value
         if (current != Screen.SPLASH && current != Screen.LOGIN && current != Screen.REGISTER && current != Screen.FORGOT_PASSWORD) {
@@ -788,11 +1386,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openChatDetail(chat: ChatMessage) {
+        if (!featureSettings.value.allowChat) {
+            featureNoticeDialog.value = "চ্যাট অপশন সাময়িকভাবে বন্ধ আছে"
+            return
+        }
         _selectedChat.value = chat
         navigateTo(Screen.CHAT_DETAIL)
     }
 
     fun openChatWithUser(name: String, avatar: String, isVerified: Boolean = false, userId: String? = null) {
+        if (!featureSettings.value.allowChat) {
+            featureNoticeDialog.value = "চ্যাট অপশন সাময়িকভাবে বন্ধ আছে"
+            return
+        }
         val cleanId = userId?.removePrefix("user_")?.removePrefix("partner_")?.trim()
         val resolvedId = if (!cleanId.isNullOrBlank() && cleanId.toIntOrNull() != null) {
             cleanId
@@ -836,6 +1442,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
 
     fun sendMessage(partnerId: String, partnerName: String, partnerAvatar: String, messageText: String) {
+        if (!featureSettings.value.allowChat) {
+            featureNoticeDialog.value = "চ্যাট অপশন সাময়িকভাবে বন্ধ আছে"
+            return
+        }
         viewModelScope.launch {
             repository.sendChatMessage(partnerId, partnerName, partnerAvatar, messageText)
         }
@@ -861,7 +1471,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             editGender.value = user.gender ?: "Male"
             editDob.value = user.dob ?: "15/08/1998"
             editEmail.value = if (user.emailOrPhone.contains("@")) user.emailOrPhone else "marufma143g@gmail.com"
-            editPhone.value = if (!user.emailOrPhone.contains("@")) user.emailOrPhone else ""
+            editPhone.value = if (!user.emailOrPhone.contains("@")) user.emailOrPhone else "+880 1712-345678"
+            if (editOccupation.value.isBlank()) editOccupation.value = "Digital Creator"
+            if (editEducation.value.isBlank()) editEducation.value = "Studied at University"
+            if (editLocation.value.isBlank()) editLocation.value = "Dhaka, Bangladesh"
+            if (editWebsite.value.isBlank()) editWebsite.value = "https://flikata.cyou"
         }
         navigateTo(Screen.EDIT_PROFILE)
     }
@@ -947,6 +1561,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
+        if (!featureSettings.value.allowLogin) {
+            featureNoticeDialog.value = "লগইন সাময়িকভাবে বন্ধ আছে"
+            return
+        }
+
         viewModelScope.launch {
             authLoading.value = true
             authError.value = null
@@ -959,7 +1578,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 _currentScreen.value = Screen.HOME
             } else {
-                authError.value = result.exceptionOrNull()?.message ?: "Invalid email/phone or password"
+                val errMsg = result.exceptionOrNull()?.message ?: "Invalid email/phone or password"
+                if (errMsg.contains("লগইন সাময়িকভাবে বন্ধ আছে")) {
+                    featureNoticeDialog.value = "লগইন সাময়িকভাবে বন্ধ আছে"
+                } else {
+                    authError.value = errMsg
+                }
             }
         }
     }
@@ -1012,6 +1636,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
+        if (!featureSettings.value.allowRegistration) {
+            featureNoticeDialog.value = "রেজিস্ট্রেশন সাময়িকভাবে বন্ধ আছে"
+            return
+        }
+
         viewModelScope.launch {
             authLoading.value = true
             authError.value = null
@@ -1029,7 +1658,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 repository.syncPostsFromServer()
                 _currentScreen.value = Screen.HOME
             } else {
-                authError.value = result.exceptionOrNull()?.message ?: "Registration failed"
+                val errMsg = result.exceptionOrNull()?.message ?: "Registration failed"
+                if (errMsg.contains("রেজিস্ট্রেশন সাময়িকভাবে বন্ধ আছে")) {
+                    featureNoticeDialog.value = "রেজিস্ট্রেশন সাময়িকভাবে বন্ধ আছে"
+                } else {
+                    authError.value = errMsg
+                }
             }
         }
     }
@@ -1065,6 +1699,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val isVideo = postSelectedIsVideo.value
 
         if (content.isEmpty() && imgUrl == null && videoUrl == null) {
+            return
+        }
+
+        val settings = featureSettings.value
+        if (isVideo && settings.dailyVideoLimit == 0) {
+            featureNoticeDialog.value = "পোস্ট করা সাময়িকভাবে বন্ধ আছে"
+            return
+        }
+        if (!isVideo && imgUrl != null && settings.dailyImageLimit == 0) {
+            featureNoticeDialog.value = "পোস্ট করা সাময়িকভাবে বন্ধ আছে"
+            return
+        }
+        if (!isVideo && imgUrl == null && settings.dailyTextLimit == 0) {
+            featureNoticeDialog.value = "পোস্ট করা সাময়িকভাবে বন্ধ আছে"
             return
         }
 
@@ -1178,14 +1826,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _postUploadState.value = _postUploadState.value.copy(progress = 0.95f)
 
             // Save actual post to local database / repository with real Cloudflare R2 URL
-            repository.createPost(
+            val createResult = repository.createPost(
                 content = content,
                 backgroundStyle = bgStyle,
                 privacy = privacy,
                 imageUrl = if (!isVideo) uploadedImageUrl else null,
                 videoUrl = if (isVideo) uploadedVideoUrl else null,
-                isVideo = isVideo
+                isVideo = isVideo,
+                authorNameOverride = activePage.value?.name,
+                authorAvatarOverride = activePage.value?.logoUrl,
+                isVerifiedOverride = activePage.value?.isVerified,
+                pageId = activePage.value?.id
             )
+
+            if (createResult.isFailure) {
+                _postUploadState.value = PostUploadState(isUploading = false)
+                val errMsg = createResult.exceptionOrNull()?.message ?: "পোস্ট করা সাময়িকভাবে বন্ধ আছে"
+                featureNoticeDialog.value = errMsg
+                return@launch
+            }
+
             repository.syncPostsFromServer()
 
             // Sync reels and posts so the new video post and reel appear across feeds

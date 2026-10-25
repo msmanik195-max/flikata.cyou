@@ -2,12 +2,13 @@
 /**
  * Admin Settings Page
  * Change Admin Password & Configure System Variables
+ * (Story Expiry, Reel Max Duration, Leaderboard Limit, Max Pages per Profile)
  */
 require_once __DIR__ . '/includes/db.php';
 
 $pageTitle = 'এডমিন সেটিংস - Flikata Admin';
 $pageHeading = 'এডমিন ও সিস্টেম সেটিংস';
-$pageSubheading = 'পাসওয়ার্ড পরিবর্তন, স্টোরি এক্সপায়ার সময় ও সিস্টেম কনফিগারেশন';
+$pageSubheading = 'পাসওয়ার্ড পরিবর্তন, লিডারবোর্ড লিমিট, স্টোরি এক্সপায়ার, পেইজ লিমিট ও অ্যাপ কনফিগারেশন';
 
 $successMsg = '';
 $errorMsg = '';
@@ -40,15 +41,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
     }
 }
 
-// Handle App Settings (Story expiry hours & Reel seconds)
+// Handle App Settings (Story expiry hours, Reel seconds, Leaderboard limit, Max pages per user)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_app_settings'])) {
-    $expiryHours = (int)($_POST['expiry_hours'] ?? 24);
-    $maxDuration = (int)($_POST['max_duration'] ?? 60);
+    $expiryHours = max(1, (int)($_POST['expiry_hours'] ?? 24));
+    $maxDuration = max(5, (int)($_POST['max_duration'] ?? 60));
+    $leaderboardLimit = max(1, (int)($_POST['leaderboard_user_limit'] ?? 20));
+    $maxPages = max(1, (int)($_POST['max_pages_per_user'] ?? 5));
 
     try {
+        // 1. Story settings
         $pdo->prepare("UPDATE story_settings SET expiry_hours = ? WHERE id = 1")->execute([$expiryHours]);
+
+        // 2. Reel settings
         $pdo->prepare("UPDATE reel_settings SET max_duration_seconds = ? WHERE id = 1")->execute([$maxDuration]);
-        $successMsg = 'অ্যাপ কনফিগারেশন সফলভাবে আপডেট করা হয়েছে!';
+
+        // 3. Leaderboard settings
+        $pdo->exec("CREATE TABLE IF NOT EXISTS `leaderboard_settings` (
+            `id` INT PRIMARY KEY DEFAULT 1,
+            `user_limit` INT NOT NULL DEFAULT 20,
+            `description` VARCHAR(255) DEFAULT 'Max users displayed on Leaderboard',
+            `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+        $pdo->prepare("INSERT INTO leaderboard_settings (id, user_limit) VALUES (1, ?) ON DUPLICATE KEY UPDATE user_limit = ?")->execute([$leaderboardLimit, $leaderboardLimit]);
+
+        // 4. Page settings
+        $pdo->exec("CREATE TABLE IF NOT EXISTS `page_settings` (
+            `id` INT PRIMARY KEY DEFAULT 1,
+            `max_pages_per_user` INT NOT NULL DEFAULT 5,
+            `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+        $pdo->prepare("INSERT INTO page_settings (id, max_pages_per_user) VALUES (1, ?) ON DUPLICATE KEY UPDATE max_pages_per_user = ?")->execute([$maxPages, $maxPages]);
+
+        $successMsg = 'অ্যাপ্লিকেশন ও সিস্টেম কনফিগারেশন সফলভাবে আপডেট করা হয়েছে!';
     } catch (Exception $e) {
         $errorMsg = 'কনফিগারেশন সেভ করতে ব্যর্থ: ' . $e->getMessage();
     }
@@ -65,12 +91,30 @@ try {
     $currReelSec = (int)$pdo->query("SELECT max_duration_seconds FROM reel_settings WHERE id = 1")->fetchColumn() ?: 60;
 } catch (Exception $e) {}
 
+$currLeaderboardLimit = 20;
+try {
+    $stmtLb = $pdo->query("SELECT user_limit FROM leaderboard_settings WHERE id = 1 LIMIT 1");
+    $lbRow = $stmtLb ? $stmtLb->fetchColumn() : null;
+    if ($lbRow && (int)$lbRow > 0) {
+        $currLeaderboardLimit = (int)$lbRow;
+    }
+} catch (Exception $e) {}
+
+$currMaxPages = 5;
+try {
+    $stmtPg = $pdo->query("SELECT max_pages_per_user FROM page_settings WHERE id = 1 LIMIT 1");
+    $pgRow = $stmtPg ? $stmtPg->fetchColumn() : null;
+    if ($pgRow && (int)$pgRow > 0) {
+        $currMaxPages = (int)$pgRow;
+    }
+} catch (Exception $e) {}
+
 require_once __DIR__ . '/includes/header.php';
 ?>
 
 <div class="row g-4">
     <!-- Change Admin Password Card -->
-    <div class="col-12 col-md-6">
+    <div class="col-12 col-lg-5">
         <div class="card-custom h-100">
             <h6 class="fw-bold text-dark mb-1"><i class="bi bi-shield-lock-fill text-primary me-2"></i>এডমিন পাসওয়ার্ড পরিবর্তন</h6>
             <small class="text-muted d-block mb-3">লগইন ক্রেডেনশিয়াল সুরক্ষিত রাখতে নিয়মিত পাসওয়ার্ড পরিবর্তন করুন</small>
@@ -113,30 +157,60 @@ require_once __DIR__ . '/includes/header.php';
     </div>
 
     <!-- App System Configurations Card -->
-    <div class="col-12 col-md-6">
+    <div class="col-12 col-lg-7">
         <div class="card-custom h-100">
-            <h6 class="fw-bold text-dark mb-1"><i class="bi bi-sliders text-info me-2"></i>অ্যাপ কনফিগারেশন</h6>
-            <small class="text-muted d-block mb-3">সোশ্যাল অ্যাপ্লিকেশনের স্বয়ংক্রিয় আচরণ নিয়ন্ত্রণ</small>
+            <h6 class="fw-bold text-dark mb-1"><i class="bi bi-sliders text-info me-2"></i>অ্যাপ্লিকেশন ও ডাটাবেজ কনফিগারেশন</h6>
+            <small class="text-muted d-block mb-3">লিডারবোর্ড, স্টোরি এক্সপায়ার, পেইজ তৈরির সীমা এবং রিলস নিয়ন্ত্রণ</small>
 
             <form method="POST" action="settings.php">
                 <input type="hidden" name="update_app_settings" value="1">
 
-                <div class="mb-3">
-                    <label class="form-label small fw-bold text-secondary">স্টোরিজ মেয়াদ (ঘন্টায় / Hours)</label>
-                    <div class="input-group">
-                        <input type="number" name="expiry_hours" class="form-control rounded-3" value="<?= $currExpiry ?>" min="1" max="168" required>
-                        <span class="input-group-text bg-light border">ঘন্টা (Hours)</span>
+                <!-- 1. Leaderboard User Limit -->
+                <div class="p-3 bg-light rounded-3 mb-3 border">
+                    <label class="form-label small fw-bold text-dark mb-1">
+                        <i class="bi bi-trophy-fill text-warning me-1"></i> লিডার বোর্ডে মোট কতজন ইউজার শো করবে (Leaderboard User Limit)
+                    </label>
+                    <div class="input-group mb-1">
+                        <input type="number" name="leaderboard_user_limit" class="form-control rounded-3" value="<?= $currLeaderboardLimit ?>" min="1" step="1" required>
+                        <span class="input-group-text bg-white border">জন ইউজার (Users)</span>
                     </div>
-                    <small class="text-muted">ডিফল্ট ২৪ ঘন্টা। এটি পরিবর্তন করলে নতুন সকল স্টোরিজ এই সময় অনুযায়ী এক্সপায়ার হবে।</small>
+                    <small class="text-muted d-block">ডিফল্ট ২০ জন। আপনি চাইলে ২০, ৩০, ৪০, ৫০, ১০০, ২০০ বা আপনার মনের মত যেকোনো সংখ্যা দিতে পারেন। লিডারবোর্ডে শুধুমাত্র প্রকৃত রিয়েল ইউজাররাই কাউন্ট হবে এবং তাদের এনগেজমেন্ট র‍্যাঙ্কিং অনুযায়ী শো করবে।</small>
                 </div>
 
-                <div class="mb-4">
-                    <label class="form-label small fw-bold text-secondary">রিলস / শর্ট ভিডিও সর্বোচ্চ সময়সীমা (সেকেন্ড)</label>
-                    <div class="input-group">
-                        <input type="number" name="max_duration" class="form-control rounded-3" value="<?= $currReelSec ?>" min="10" max="300" required>
-                        <span class="input-group-text bg-light border">সেকেন্ড</span>
+                <!-- 2. Story Expiry Hours (Unlimited Supported) -->
+                <div class="p-3 bg-light rounded-3 mb-3 border">
+                    <label class="form-label small fw-bold text-dark mb-1">
+                        <i class="bi bi-clock-history text-primary me-1"></i> স্টোরিজ মেয়াদ / অটোমেটিক রিমুভ সময়সীমা (ঘন্টায় / Hours)
+                    </label>
+                    <div class="input-group mb-1">
+                        <input type="number" name="expiry_hours" class="form-control rounded-3" value="<?= $currExpiry ?>" min="1" step="1" required>
+                        <span class="input-group-text bg-white border">ঘন্টা (Hours)</span>
                     </div>
-                    <small class="text-muted">ডিফল্ট ৬০ সেকেন্ড (১ মিনিট)। ব্যবহারকারীদের আপলোড করা রিলসের সর্বোচ্চ সময়সীমা।</small>
+                    <small class="text-muted d-block">ডিফল্ট ২৪ ঘন্টা। এখানে কোনো ১৬৮ ঘন্টার সীমাবদ্ধতা নেই; আপনি ইচ্ছেমতো যেকোনো ঘন্টা (যেমন ৪৮, ৭২, ১৬৮, ৭২০ বা দীর্ঘমেয়াদে ৯৯৯৯৯) নির্ধারণ করতে পারবেন।</small>
+                </div>
+
+                <!-- 3. Max Pages Per Profile -->
+                <div class="p-3 bg-light rounded-3 mb-3 border">
+                    <label class="form-label small fw-bold text-dark mb-1">
+                        <i class="bi bi-flag-fill text-success me-1"></i> একটি প্রোফাইল থেকে সর্বোচ্চ পেইজ ক্রিয়েট করার সীমা (Max Pages Per Profile)
+                    </label>
+                    <div class="input-group mb-1">
+                        <input type="number" name="max_pages_per_user" class="form-control rounded-3" value="<?= $currMaxPages ?>" min="1" step="1" required>
+                        <span class="input-group-text bg-white border">টি পেইজ (Pages)</span>
+                    </div>
+                    <small class="text-muted d-block">ডিফল্ট ৫ টি। প্রতিটি সাধারণ ইউজার প্রোফাইল থেকে সর্বোচ্চ কতগুলো পেজ তৈরি করতে পারবে তা এখান থেকে নিয়ন্ত্রণ করুন।</small>
+                </div>
+
+                <!-- 4. Reels Duration -->
+                <div class="p-3 bg-light rounded-3 mb-4 border">
+                    <label class="form-label small fw-bold text-dark mb-1">
+                        <i class="bi bi-camera-reels-fill text-danger me-1"></i> রিলস / শর্ট ভিডিও সর্বোচ্চ সময়সীমা (সেকেন্ড)
+                    </label>
+                    <div class="input-group mb-1">
+                        <input type="number" name="max_duration" class="form-control rounded-3" value="<?= $currReelSec ?>" min="5" step="1" required>
+                        <span class="input-group-text bg-white border">সেকেন্ড</span>
+                    </div>
+                    <small class="text-muted d-block">ডিফল্ট ৬০ সেকেন্ড (১ মিনিট)। ব্যবহারকারীদের আপলোড করা রিলসের সর্বোচ্চ সময়সীমা।</small>
                 </div>
 
                 <div class="p-3 bg-light rounded-3 mb-4 small border">
@@ -145,7 +219,7 @@ require_once __DIR__ . '/includes/header.php';
                 </div>
 
                 <button type="submit" class="btn btn-primary-custom w-100">
-                    <i class="bi bi-save2 me-1"></i> সেটিংস সংরক্ষণ করুন
+                    <i class="bi bi-save2 me-1"></i> কনফিগারেশন সংরক্ষণ করুন
                 </button>
             </form>
         </div>

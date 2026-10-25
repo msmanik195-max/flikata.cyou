@@ -140,7 +140,7 @@ fun SearchScreen(
             val samples = listOf(
                 SearchUserResult("8", "Test User One", "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400", true, "Designer & Tech lover • Dhaka"),
                 SearchUserResult("9", "Test User Two", "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400", true, "Full-stack developer & gamer"),
-                SearchUserResult("4", "আকাশ আহমেদ", "https://pub-c98a2e409ad94dbb8aded428cf2952a1.r2.dev/images/flikata_20261004_090334_c57b9129d2b6.jpg", false, "Digital Creator • Flikata"),
+                SearchUserResult("4", "Akash Ahmed", "https://pub-c98a2e409ad94dbb8aded428cf2952a1.r2.dev/images/flikata_20261004_090334_c57b9129d2b6.jpg", false, "Digital Creator • Flikata"),
                 SearchUserResult("3", "Maruf Home", "https://pub-c98a2e409ad94dbb8aded428cf2952a1.r2.dev/images/flikata_20261003_055434_34e12090472c.jpg", false, "Content Creator")
             )
             for (s in samples) {
@@ -471,7 +471,7 @@ fun SearchScreen(
 
                         // Quick suggestion pills
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf("আকাশ", "Maruf", "Reels", "Photo").forEach { tag ->
+                            listOf("Akash", "Maruf", "Reels", "Photo").forEach { tag ->
                                 Box(
                                     modifier = Modifier
                                         .shadow(1.dp, RoundedCornerShape(14.dp))
@@ -596,7 +596,8 @@ fun SearchScreen(
                                 onDeletePost = { postId -> viewModel.deletePost(postId) },
                                 onEditPost = { postId, content, privacy -> viewModel.editPost(postId, content, privacy) },
                                 onAddComment = { postId, text -> viewModel.addComment(postId, text) },
-                                onUserClick = { userId, authorName -> viewModel.openUserProfile(userId, authorName) }
+                                onUserClick = { userId, authorName -> viewModel.openUserProfile(userId, authorName) },
+                                onSavePost = { viewModel.toggleSavePost(it) }
                             )
                         }
                     }

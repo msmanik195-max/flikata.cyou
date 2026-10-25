@@ -58,6 +58,7 @@ data class CommentsListResponse(
 data class Post(
     val id: String = "",
     @Json(name = "user_id") val userId: String = "",
+    @Json(name = "page_id") val pageId: String? = null,
     @Json(name = "author_name") val authorName: String = "",
     @Json(name = "author_avatar") val authorAvatar: String = "",
     @Json(name = "is_verified") val isVerified: Boolean = false,
@@ -325,12 +326,19 @@ data class UserProfileData(
     @Json(name = "posts_count") val postsCount: Int? = 0,
     @Json(name = "photos_count") val photosCount: Int? = 0,
     @Json(name = "reels_count") val reelsCount: Int? = 0,
+    @Json(name = "followers_count") val followersCount: Int? = 0,
+    @Json(name = "following_count") val followingCount: Int? = 0,
+    @Json(name = "is_following") val isFollowing: Boolean? = false,
+    @Json(name = "about_settings") val aboutSettings: Map<String, Boolean>? = null,
     val joinedDate: String? = null
 ) {
     val idString: String get() = id?.toString() ?: ""
     val isVerifiedBool: Boolean get() = isVerified == 1
     val isOnlineBool: Boolean get() = isOnline == 1
     val walletBalanceDouble: Double get() = walletBalance ?: 0.0
+    val totalFollowers: Int get() = followersCount ?: 0
+    val totalFollowing: Int get() = followingCount ?: 0
+    val isFollowedByMe: Boolean get() = isFollowing == true
 }
 
 @JsonClass(generateAdapter = true)
@@ -338,6 +346,19 @@ data class UserProfileResponse(
     val success: Boolean = false,
     val message: String? = null,
     val data: UserProfileData? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class ToggleFollowData(
+    @Json(name = "is_following") val isFollowing: Boolean = false,
+    @Json(name = "followers_count") val followersCount: Int = 0
+)
+
+@JsonClass(generateAdapter = true)
+data class ToggleFollowResponse(
+    val success: Boolean = false,
+    val message: String? = null,
+    val data: ToggleFollowData? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -727,6 +748,140 @@ data class SubmitMonetizationResponse(
     val message: String? = null,
     val data: SubmitMonetizationData? = null
 )
+
+@JsonClass(generateAdapter = true)
+data class MarketplaceProduct(
+    val id: String = "",
+    val userId: String = "",
+    val title: String = "",
+    val price: Double = 0.0,
+    val formattedPrice: String = "৳ 0",
+    val currency: String = "BDT",
+    val category: String = "General",
+    val condition: String = "New",
+    val location: String = "Dhaka, Bangladesh",
+    val description: String = "",
+    val imageUrl: String? = null,
+    val isSold: Boolean = false,
+    val viewsCount: Int = 0,
+    val createdAt: String = "",
+    val sellerName: String = "Seller",
+    val sellerAvatar: String? = null,
+    val sellerVerified: Boolean = false
+)
+
+@JsonClass(generateAdapter = true)
+data class MarketplaceListResponse(
+    val success: Boolean = false,
+    val message: String? = null,
+    val data: List<MarketplaceProduct> = emptyList()
+)
+
+@JsonClass(generateAdapter = true)
+data class MarketplaceCreateResponse(
+    val success: Boolean = false,
+    val message: String? = null,
+    val data: MarketplaceProduct? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class FlikataPage(
+    val id: String = "",
+    @Json(name = "user_id") val userId: String = "",
+    val name: String = "",
+    val category: String = "Creator",
+    val bio: String = "",
+    @Json(name = "logo_url") val logoUrl: String? = null,
+    @Json(name = "banner_url") val bannerUrl: String? = null,
+    val email: String? = null,
+    val phone: String? = null,
+    val website: String? = null,
+    @Json(name = "followers_count") val followersCount: Int = 0,
+    @Json(name = "likes_count") val likesCount: Int = 0,
+    @Json(name = "is_verified") val isVerified: Boolean = false,
+    @Json(name = "created_at") val createdAt: String = "Just now"
+)
+
+@JsonClass(generateAdapter = true)
+data class PagesListResponse(
+    val success: Boolean = false,
+    val message: String? = null,
+    val data: List<FlikataPage> = emptyList()
+)
+
+@JsonClass(generateAdapter = true)
+data class PageCreateResponse(
+    val success: Boolean = false,
+    val message: String? = null,
+    val data: FlikataPage? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class PageSettingsResponse(
+    val success: Boolean = false,
+    @Json(name = "max_pages_per_user") val maxPagesPerUser: Int = 5,
+    val message: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class LeaderboardUser(
+    val id: String = "",
+    val name: String = "",
+    val username: String? = null,
+    @Json(name = "avatar_url") val avatarUrl: String? = null,
+    @Json(name = "is_verified") val isVerified: Boolean = false,
+    val rank: Int = 1,
+    @Json(name = "total_likes") val totalLikes: Int = 0,
+    @Json(name = "total_comments") val totalComments: Int = 0,
+    @Json(name = "total_followers") val totalFollowers: Int = 0,
+    @Json(name = "engagement_score") val engagementScore: Int = 0
+)
+
+@JsonClass(generateAdapter = true)
+data class LeaderboardResponse(
+    val success: Boolean = false,
+    val message: String? = null,
+    val data: List<LeaderboardUser> = emptyList()
+)
+
+@JsonClass(generateAdapter = true)
+data class LeaderboardSettingsResponse(
+    val success: Boolean = false,
+    @Json(name = "user_limit") val userLimit: Int = 20,
+    val message: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class AppUpdateResponse(
+    val success: Boolean = false,
+    @Json(name = "update_available") val updateAvailable: Boolean = false,
+    @Json(name = "is_force") val isForce: Boolean = false,
+    @Json(name = "latest_version_code") val latestVersionCode: Int = 0,
+    @Json(name = "latest_version_name") val latestVersionName: String = "",
+    @Json(name = "apk_url") val apkUrl: String = "",
+    @Json(name = "apk_size_mb") val apkSizeMb: String = "",
+    @Json(name = "release_notes") val releaseNotes: String = "",
+    val message: String? = null
+)
+
+@JsonClass(generateAdapter = true)
+data class FeatureSettingsResponse(
+    val success: Boolean = true,
+    @Json(name = "allow_page_creation") val allowPageCreation: Boolean = true,
+    @Json(name = "allow_login") val allowLogin: Boolean = true,
+    @Json(name = "allow_registration") val allowRegistration: Boolean = true,
+    @Json(name = "allow_chat") val allowChat: Boolean = true,
+    @Json(name = "allow_reels") val allowReels: Boolean = true,
+    @Json(name = "feed_show_text_posts") val feedShowTextPosts: Boolean = true,
+    @Json(name = "feed_show_image_posts") val feedShowImagePosts: Boolean = true,
+    @Json(name = "feed_show_video_posts") val feedShowVideoPosts: Boolean = true,
+    @Json(name = "daily_text_limit") val dailyTextLimit: Int = 30,
+    @Json(name = "daily_image_limit") val dailyImageLimit: Int = 20,
+    @Json(name = "daily_video_limit") val dailyVideoLimit: Int = 10,
+    @Json(name = "daily_story_limit") val dailyStoryLimit: Int = 15,
+    @Json(name = "default_page_create_limit") val defaultPageCreateLimit: Int = 5
+)
+
 
 
 

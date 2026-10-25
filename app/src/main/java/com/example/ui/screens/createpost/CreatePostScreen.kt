@@ -92,6 +92,7 @@ fun CreatePostScreen(
     onClose: () -> Unit
 ) {
     val currentUser by viewModel.currentUser.collectAsState()
+    val activePage by viewModel.activePage.collectAsState()
     val postContent by viewModel.postContent.collectAsState()
     val privacy by viewModel.postPrivacy.collectAsState()
     val bgStyle by viewModel.postBackgroundStyle.collectAsState()
@@ -197,13 +198,17 @@ fun CreatePostScreen(
                 .padding(16.dp)
                 .verticalScroll(scrollState)
         ) {
-            // User Header Row
+            // User/Page Header Row
+            val authorName = if (activePage != null) activePage!!.name else (currentUser?.fullName ?: "User")
+            val authorPic = if (activePage != null) activePage!!.logoUrl else currentUser?.profilePic
+            val isVerified = if (activePage != null) activePage!!.isVerified else (currentUser?.isVerified == true)
+
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 FlikataAvatar(
-                    name = currentUser?.fullName ?: "User",
-                    avatarUrl = currentUser?.profilePic,
+                    name = authorName,
+                    avatarUrl = authorPic,
                     size = 46.dp
                 )
 
@@ -212,12 +217,12 @@ fun CreatePostScreen(
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = currentUser?.fullName ?: "md sumon Islam",
+                            text = authorName,
                             fontWeight = FontWeight.Bold,
                             fontSize = 16.sp,
                             color = FlikataTextPrimary
                         )
-                        if (currentUser?.isVerified == true) {
+                        if (isVerified) {
                             Spacer(modifier = Modifier.width(5.dp))
                             VerifiedBadge(size = 18.dp)
                         }
@@ -225,38 +230,59 @@ fun CreatePostScreen(
 
                     Spacer(modifier = Modifier.height(4.dp))
 
-                    // Privacy Dropdown Pill
                     Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .clickable { showPrivacySheet = true }
-                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = when (privacy) {
-                                "Friends" -> Icons.Default.People
-                                "Only Me" -> Icons.Default.Lock
-                                else -> Icons.Default.Public
-                            },
-                            contentDescription = "Privacy",
-                            tint = FlikataPrimary,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = privacy,
-                            color = FlikataPrimary,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Icon(
-                            imageVector = Icons.Default.ArrowDropDown,
-                            contentDescription = "Dropdown",
-                            tint = FlikataPrimary,
-                            modifier = Modifier.size(16.dp)
-                        )
+                        // Privacy Dropdown Pill
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .clickable { showPrivacySheet = true }
+                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = when (privacy) {
+                                    "Friends" -> Icons.Default.People
+                                    "Only Me" -> Icons.Default.Lock
+                                    else -> Icons.Default.Public
+                                },
+                                contentDescription = "Privacy",
+                                tint = FlikataPrimary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = privacy,
+                                color = FlikataPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Icon(
+                                imageVector = Icons.Default.ArrowDropDown,
+                                contentDescription = "Dropdown",
+                                tint = FlikataPrimary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+
+                        if (activePage != null) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFFE8F5E9))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "Posting as Page",
+                                    color = Color(0xFF2E7D32),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
                 }
             }

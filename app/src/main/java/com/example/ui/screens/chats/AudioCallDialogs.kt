@@ -80,7 +80,7 @@ fun IncomingCallOverlay(
         if (granted) {
             onAccept()
         } else {
-            Toast.makeText(context, "মাইক্রোফোন পারমিশন প্রয়োজন কল রিসিভ করতে", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "Microphone permission required to receive call", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -124,7 +124,7 @@ fun IncomingCallOverlay(
                 modifier = Modifier.padding(top = 40.dp)
             ) {
                 Text(
-                    text = "ইনকামিং অডিও কল",
+                    text = "Incoming Audio Call",
                     fontSize = 15.sp,
                     color = Color(0xFF64B5F6),
                     fontWeight = FontWeight.SemiBold
@@ -228,7 +228,7 @@ fun IncomingCallOverlay(
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "কেটে দিন",
+                        text = "Decline",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = Color.White
@@ -272,7 +272,7 @@ fun IncomingCallOverlay(
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "রিসিভ করুন",
+                        text = "Accept",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = Color.White

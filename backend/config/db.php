@@ -31,13 +31,28 @@ function getDB() {
         ];
         try {
             $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
-            require_once __DIR__ . '/schema_update.php';
-            ensureVerificationAndWalletSchema($pdo);
-        } catch (PDOException $e) {
-            echo json_encode([
-                'success' => false,
-                'message' => 'Database connection failed: ' . $e->getMessage()
-            ], JSON_UNESCAPED_UNICODE);
+            try {
+                require_once __DIR__ . '/schema_update.php';
+                if (function_exists('ensureVerificationAndWalletSchema')) {
+                    ensureVerificationAndWalletSchema($pdo);
+                }
+            } catch (Throwable $se) {
+                error_log("Schema update notice: " . $se->getMessage());
+            }
+        } catch (Throwable $e) {
+            if (headers_sent() || (isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'text/html') !== false)) {
+                echo "<div style='font-family:sans-serif;padding:20px;background:#fee2e2;border:1px solid #ef4444;border-radius:8px;max-width:600px;margin:40px auto;color:#991b1b;'>";
+                echo "<h3>Database Connection / Configuration Notice</h3>";
+                echo "<p><strong>Message:</strong> " . htmlspecialchars($e->getMessage()) . "</p>";
+                echo "<p style='font-size:13px;color:#7f1d1d;'>Please check your <code>backend/config/db.php</code> settings (DB_HOST, DB_NAME, DB_USER, DB_PASS) and make sure your database is created and imported.</p>";
+                echo "</div>";
+            } else {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Database error: ' . $e->getMessage()
+                ], JSON_UNESCAPED_UNICODE);
+            }
             exit;
         }
     }

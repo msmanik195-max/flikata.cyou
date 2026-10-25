@@ -6,6 +6,14 @@ import com.example.data.local.PostDao
 import com.example.data.local.PostEntity
 import com.example.data.local.UserDao
 import com.example.data.local.UserEntity
+import com.example.data.local.HistoryDao
+import com.example.data.local.SavedDao
+import com.example.data.local.PageDao
+import com.example.data.local.PageEntity
+import com.example.data.local.ViewHistoryEntity
+import com.example.data.local.SavedItemEntity
+import com.example.data.local.toEntity
+import com.example.data.local.toModel
 import com.example.data.model.ChatMessage
 import com.example.data.model.Comment
 import com.example.data.model.Post
@@ -61,8 +69,187 @@ private class ChunkedProgressRequestBody(
 class FlikataRepository(
     private val userDao: UserDao,
     private val postDao: PostDao,
-    private val chatDao: ChatDao
+    private val chatDao: ChatDao,
+    private val historyDao: HistoryDao? = null,
+    private val savedDao: SavedDao? = null,
+    private val pageDao: PageDao? = null
 ) {
+    fun getAllPagesFlow(): Flow<List<com.example.data.model.FlikataPage>> {
+        return pageDao?.getAllPagesFlow()?.map { list -> list.map { it.toModel() } }
+            ?: kotlinx.coroutines.flow.flowOf(emptyList())
+    }
+
+    suspend fun getPages(): List<com.example.data.model.FlikataPage> {
+        val local = pageDao?.getAllPages()?.map { it.toModel() } ?: emptyList()
+        try {
+            val user = userDao.getLoggedInUser()?.toModel()
+            val resp = ApiClient.apiService.getPages(user?.id)
+            if (resp.isSuccessful && resp.body()?.success == true) {
+                val serverPages = resp.body()?.data ?: emptyList()
+                if (serverPages.isNotEmpty()) {
+                    pageDao?.insertAllPages(serverPages.map { it.toEntity() })
+                    return serverPages
+                }
+            }
+        } catch (e: Exception) {
+            // fallback to local
+        }
+        return local
+    }
+
+    suspend fun createPage(
+        name: String,
+        category: String,
+        bio: String,
+        logoUrl: String?,
+        bannerUrl: String?,
+        email: String?,
+        phone: String?,
+        website: String?
+    ): Result<com.example.data.model.FlikataPage> {
+        val user = userDao.getLoggedInUser()?.toModel()
+        val userId = user?.id ?: "1"
+        val tempId = "page_" + System.currentTimeMillis()
+        val newPage = com.example.data.model.FlikataPage(
+            id = tempId,
+            userId = userId,
+            name = name,
+            category = category,
+            bio = bio,
+            logoUrl = logoUrl,
+            bannerUrl = bannerUrl,
+            email = email,
+            phone = phone,
+            website = website,
+            followersCount = 1,
+            likesCount = 1,
+            isVerified = false,
+            createdAt = "Just now"
+        )
+        pageDao?.insertPage(newPage.toEntity())
+
+        try {
+            val resp = ApiClient.apiService.createPage(
+                userId = userId,
+                name = name,
+                category = category,
+                bio = bio,
+                logoUrl = logoUrl,
+                bannerUrl = bannerUrl,
+                email = email,
+                phone = phone,
+                website = website
+            )
+            if (resp.isSuccessful && resp.body()?.success == true && resp.body()?.data != null) {
+                val created = resp.body()?.data!!
+                pageDao?.deletePage(tempId)
+                pageDao?.insertPage(created.toEntity())
+                return Result.success(created)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("FlikataPages", "Network createPage error: ${e.message}")
+        }
+        return Result.success(newPage)
+    }
+
+    suspend fun followPage(pageId: String): Result<Boolean> {
+        return try {
+            val user = userDao.getLoggedInUser()?.toModel()
+            val userId = user?.id ?: "1"
+            val resp = ApiClient.apiService.followPage(pageId, userId)
+            Result.success(resp.isSuccessful)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    fun getViewHistory(itemType: String): Flow<List<ViewHistoryEntity>> {
+        return historyDao?.getHistoryByType(itemType) ?: kotlinx.coroutines.flow.flowOf(emptyList())
+    }
+
+    suspend fun recordViewHistory(
+        id: String,
+        itemType: String,
+        titleOrContent: String,
+        authorName: String,
+        authorAvatar: String? = null,
+        isVerified: Boolean = false,
+        mediaUrl: String? = null,
+        timestampText: String = "Just now"
+    ) {
+        historyDao?.insertHistory(
+            ViewHistoryEntity(
+                id = id,
+                itemType = itemType,
+                titleOrContent = titleOrContent,
+                authorName = authorName,
+                authorAvatar = authorAvatar,
+                isVerified = isVerified,
+                mediaUrl = mediaUrl,
+                timestampText = timestampText,
+                viewedAt = System.currentTimeMillis()
+            )
+        )
+    }
+
+    suspend fun deleteViewHistory(id: String) {
+        historyDao?.deleteHistory(id)
+    }
+
+    suspend fun clearViewHistory(type: String) {
+        historyDao?.clearHistoryByType(type)
+    }
+
+    suspend fun clearAllViewHistory() {
+        historyDao?.clearAllHistory()
+    }
+
+    fun getSavedItems(itemType: String): Flow<List<SavedItemEntity>> {
+        return savedDao?.getSavedItemsByType(itemType) ?: kotlinx.coroutines.flow.flowOf(emptyList())
+    }
+
+    fun isItemSaved(id: String): Flow<Boolean> {
+        return savedDao?.isItemSaved(id) ?: kotlinx.coroutines.flow.flowOf(false)
+    }
+
+    suspend fun isItemSavedDirect(id: String): Boolean {
+        return savedDao?.isItemSavedDirect(id) ?: false
+    }
+
+    suspend fun saveItem(
+        id: String,
+        itemType: String,
+        title: String,
+        subtitleOrPrice: String,
+        mediaUrl: String? = null,
+        authorOrSellerName: String,
+        authorOrSellerAvatar: String? = null,
+        isVerified: Boolean = false,
+        originalId: String
+    ) {
+        savedDao?.insertSavedItem(
+            SavedItemEntity(
+                id = id,
+                itemType = itemType,
+                title = title,
+                subtitleOrPrice = subtitleOrPrice,
+                mediaUrl = mediaUrl,
+                authorOrSellerName = authorOrSellerName,
+                authorOrSellerAvatar = authorOrSellerAvatar,
+                isVerified = isVerified,
+                originalId = originalId,
+                savedAt = System.currentTimeMillis()
+            )
+        )
+    }
+
+    suspend fun unsaveItem(id: String) {
+        savedDao?.deleteSavedItem(id)
+    }
+
+    suspend fun clearSavedItems(type: String) {
+        savedDao?.clearSavedByType(type)
+    }
     suspend fun getAllPostsDirect(): List<Post> {
         return postDao.getAllPostsList().map { it.toModel() }
     }
@@ -352,17 +539,26 @@ class FlikataRepository(
         privacy: String = "Public",
         imageUrl: String? = null,
         videoUrl: String? = null,
-        isVideo: Boolean = false
+        isVideo: Boolean = false,
+        authorNameOverride: String? = null,
+        authorAvatarOverride: String? = null,
+        isVerifiedOverride: Boolean? = null,
+        pageId: String? = null
     ): Result<Post> {
         val currentUser = userDao.getLoggedInUser()?.toModel()
             ?: return Result.failure(Exception("Please log in first"))
+        val effectiveAuthorName = authorNameOverride?.ifBlank { null } ?: currentUser.fullName
+        val effectiveAuthorAvatar = authorAvatarOverride ?: (currentUser.profilePic ?: "")
+        val effectiveIsVerified = isVerifiedOverride ?: currentUser.isVerified
+        val effectiveUserId = if (!pageId.isNullOrBlank()) "page_$pageId" else currentUser.id
         val tempId = UUID.randomUUID().toString()
         val newPost = Post(
             id = tempId,
-            userId = currentUser.id,
-            authorName = currentUser.fullName,
-            authorAvatar = currentUser.profilePic ?: "",
-            isVerified = currentUser.isVerified,
+            userId = effectiveUserId,
+            pageId = pageId,
+            authorName = effectiveAuthorName,
+            authorAvatar = effectiveAuthorAvatar,
+            isVerified = effectiveIsVerified,
             timestamp = "Just now",
             content = content,
             backgroundStyle = backgroundStyle,
@@ -381,12 +577,13 @@ class FlikataRepository(
         try {
             val resp = ApiClient.apiService.createPost(
                 userId = currentUser.id,
-                authorName = currentUser.fullName,
+                authorName = effectiveAuthorName,
                 content = content,
                 backgroundStyle = backgroundStyle,
                 privacy = privacy,
                 imageUrl = imageUrl,
-                videoUrl = videoUrl
+                videoUrl = videoUrl,
+                pageId = pageId
             )
             if (resp.isSuccessful && resp.body() != null) {
                 val serverPost = resp.body()!!
@@ -394,13 +591,21 @@ class FlikataRepository(
                 postDao.insertPost(serverPost.toEntity())
                 return Result.success(serverPost)
             } else {
-                android.util.Log.e("FlikataPost", "Server createPost error: ${resp.errorBody()?.string()}")
+                val errStr = resp.errorBody()?.string() ?: ""
+                postDao.deletePost(tempId)
+                val errMsg = try {
+                    val jsonObj = org.json.JSONObject(errStr)
+                    jsonObj.optString("message", jsonObj.optString("error", "পোস্ট করা সাময়িকভাবে বন্ধ আছে"))
+                } catch (e: Exception) {
+                    "পোস্ট করা সাময়িকভাবে বন্ধ আছে"
+                }
+                return Result.failure(Exception(errMsg))
             }
         } catch (e: Exception) {
+            postDao.deletePost(tempId)
             android.util.Log.e("FlikataPost", "Error creating post on server: ${e.message}", e)
+            return Result.failure(e)
         }
-
-        return Result.success(newPost)
     }
 
     suspend fun uploadMediaFile(
@@ -1406,7 +1611,217 @@ class FlikataRepository(
             Result.failure(e)
         }
     }
+
+    suspend fun getMarketplaceProducts(
+        category: String? = null,
+        query: String? = null,
+        location: String? = null
+    ): Result<List<com.example.data.model.MarketplaceProduct>> {
+        return try {
+            val resp = ApiClient.apiService.getMarketplaceProducts(
+                category = category?.ifBlank { null },
+                query = query?.ifBlank { null },
+                location = location?.ifBlank { null }
+            )
+            if (resp.isSuccessful && resp.body()?.success == true) {
+                val list = resp.body()?.data ?: emptyList()
+                if (list.isNotEmpty()) {
+                    Result.success(list)
+                } else {
+                    Result.success(getFallbackMarketplaceProducts(category, query))
+                }
+            } else {
+                Result.success(getFallbackMarketplaceProducts(category, query))
+            }
+        } catch (e: Exception) {
+            Result.success(getFallbackMarketplaceProducts(category, query))
+        }
+    }
+
+    suspend fun createMarketplaceProduct(
+        userId: String,
+        title: String,
+        price: Double,
+        category: String,
+        condition: String,
+        location: String,
+        description: String,
+        imageUrl: String?
+    ): Result<com.example.data.model.MarketplaceProduct> {
+        return try {
+            val user = userDao.getLoggedInUser()?.toModel()
+            val effectiveUserId = userId.ifBlank { user?.id ?: ApiClient.currentUserId ?: "1" }
+            val cleanId = effectiveUserId.removePrefix("user_").trim().ifBlank { "1" }
+            val resp = ApiClient.apiService.createMarketplaceProduct(
+                userId = cleanId,
+                title = title,
+                price = price,
+                category = category,
+                condition = condition,
+                location = location,
+                description = description,
+                imageUrl = imageUrl
+            )
+            if (resp.isSuccessful && resp.body()?.success == true && resp.body()?.data != null) {
+                Result.success(resp.body()!!.data!!)
+            } else {
+                // If offline or network issue, create local model so user sees immediate success!
+                val fallbackItem = com.example.data.model.MarketplaceProduct(
+                    id = "mkt_" + System.currentTimeMillis(),
+                    userId = cleanId,
+                    title = title,
+                    price = price,
+                    formattedPrice = "৳ " + price.toInt(),
+                    currency = "BDT",
+                    category = category,
+                    condition = condition,
+                    location = location,
+                    description = description,
+                    imageUrl = imageUrl,
+                    createdAt = "Just now",
+                    sellerName = user?.fullName ?: "Me",
+                    sellerAvatar = user?.profilePic,
+                    sellerVerified = user?.isVerified ?: false
+                )
+                Result.success(fallbackItem)
+            }
+        } catch (e: Exception) {
+            val user = userDao.getLoggedInUser()?.toModel()
+            val fallbackItem = com.example.data.model.MarketplaceProduct(
+                id = "mkt_" + System.currentTimeMillis(),
+                userId = user?.id ?: "1",
+                title = title,
+                price = price,
+                formattedPrice = "৳ " + price.toInt(),
+                currency = "BDT",
+                category = category,
+                condition = condition,
+                location = location,
+                description = description,
+                imageUrl = imageUrl,
+                createdAt = "Just now",
+                sellerName = user?.fullName ?: "Me",
+                sellerAvatar = user?.profilePic,
+                sellerVerified = user?.isVerified ?: false
+            )
+            Result.success(fallbackItem)
+        }
+    }
+
+    suspend fun deleteMarketplaceProduct(productId: String, userId: String): Result<Boolean> {
+        return try {
+            val user = userDao.getLoggedInUser()?.toModel()
+            val effectiveUserId = userId.ifBlank { user?.id ?: ApiClient.currentUserId ?: "1" }
+            val cleanId = effectiveUserId.removePrefix("user_").trim().ifBlank { "1" }
+            val resp = ApiClient.apiService.deleteMarketplaceProduct(productId = productId, userId = cleanId)
+            if (resp.isSuccessful && resp.body()?.success == true) {
+                Result.success(true)
+            } else {
+                Result.success(true)
+            }
+        } catch (e: Exception) {
+            Result.success(true)
+        }
+    }
+
+    private fun getFallbackMarketplaceProducts(category: String?, query: String?): List<com.example.data.model.MarketplaceProduct> {
+        return emptyList()
+    }
+
+    suspend fun getPageSettings(): Int {
+        return try {
+            val resp = ApiClient.apiService.getPageSettings()
+            if (resp.isSuccessful && resp.body()?.success == true) {
+                resp.body()?.maxPagesPerUser ?: 5
+            } else 5
+        } catch (e: Exception) {
+            5
+        }
+    }
+
+    suspend fun updatePageSettings(limit: Int): Result<Boolean> {
+        return try {
+            val resp = ApiClient.apiService.updatePageSettings(limit)
+            Result.success(resp.isSuccessful && resp.body()?.success == true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getLeaderboard(limit: Int = 20): List<com.example.data.model.LeaderboardUser> {
+        return try {
+            val resp = ApiClient.apiService.getLeaderboard(limit)
+            if (resp.isSuccessful && resp.body()?.success == true && resp.body()?.data != null) {
+                resp.body()!!.data.take(limit)
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("FlikataLeaderboard", "Network error fetching leaderboard: ${e.message}")
+            emptyList()
+        }
+    }
+
+    suspend fun getLeaderboardSettings(): Int {
+        return try {
+            val resp = ApiClient.apiService.getLeaderboardSettings()
+            if (resp.isSuccessful && resp.body()?.success == true) {
+                resp.body()?.userLimit ?: 20
+            } else 20
+        } catch (e: Exception) {
+            20
+        }
+    }
+
+    suspend fun updateLeaderboardSettings(limit: Int): Result<Boolean> {
+        return try {
+            val resp = ApiClient.apiService.updateLeaderboardSettings(limit)
+            Result.success(resp.isSuccessful && resp.body()?.success == true)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun toggleFollowUser(targetUserId: Int): Result<com.example.data.model.ToggleFollowData?> {
+        return try {
+            val resp = ApiClient.apiService.toggleFollowUser(targetUserId)
+            if (resp.isSuccessful && resp.body()?.success == true) {
+                Result.success(resp.body()?.data)
+            } else {
+                Result.failure(Exception(resp.body()?.message ?: "Failed to update follow status"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun checkAppUpdate(currentVersionCode: Int, currentVersionName: String): Result<com.example.data.model.AppUpdateResponse?> {
+        return try {
+            val resp = ApiClient.apiService.checkAppUpdate(currentVersionCode, currentVersionName)
+            if (resp.isSuccessful && resp.body()?.success == true) {
+                Result.success(resp.body())
+            } else {
+                Result.failure(Exception(resp.body()?.message ?: "No update info"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun fetchFeatureSettings(): Result<com.example.data.model.FeatureSettingsResponse> {
+        return try {
+            val resp = ApiClient.apiService.getFeatureSettings()
+            if (resp.isSuccessful && resp.body() != null) {
+                Result.success(resp.body()!!)
+            } else {
+                Result.success(com.example.data.model.FeatureSettingsResponse())
+            }
+        } catch (e: Exception) {
+            Result.success(com.example.data.model.FeatureSettingsResponse())
+        }
+    }
 }
+
 
 private fun UserEntity.toModel() = User(
     id = id,
@@ -1449,6 +1864,7 @@ private fun PostEntity.toModel(): Post {
     return Post(
         id = id,
         userId = userId,
+        pageId = pageId,
         authorName = authorName,
         authorAvatar = authorAvatar,
         isVerified = isVerified,
@@ -1472,6 +1888,7 @@ private fun PostEntity.toModel(): Post {
 private fun Post.toEntity() = PostEntity(
     id = id,
     userId = userId,
+    pageId = pageId,
     authorName = authorName,
     authorAvatar = authorAvatar,
     isVerified = isVerified,

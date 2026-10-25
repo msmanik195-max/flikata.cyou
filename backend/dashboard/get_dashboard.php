@@ -132,23 +132,21 @@ try {
     $postViews = (int)$pvStmt->fetchColumn();
 } catch (Exception $e) {}
 
-// If no separate view events in period, sum content views published in period
-if ($reelViews === 0) {
-    try {
-        $q = $pdo->prepare("SELECT COALESCE(SUM(views_count), 0) FROM reels WHERE user_id = ? AND created_at >= ?");
-        $q->execute([$userId, $cutoff]);
-        $reelViews = (int)$q->fetchColumn();
-    } catch (Exception $e) {}
-}
-if ($postViews === 0) {
-    try {
-        $q = $pdo->prepare("SELECT COALESCE(SUM(views_count), 0) FROM posts WHERE user_id = ? AND created_at >= ?");
-        $q->execute([$userId, $cutoff]);
-        $postViews = (int)$q->fetchColumn();
-    } catch (Exception $e) {}
-}
+// Calculate content views directly from reels and posts views_count
+$allReelViews = 0;
+$allPostViews = 0;
+try {
+    $q = $pdo->prepare("SELECT COALESCE(SUM(views_count), 0) FROM reels WHERE user_id = ?");
+    $q->execute([$userId]);
+    $allReelViews = (int)$q->fetchColumn();
+} catch (Exception $e) {}
+try {
+    $q = $pdo->prepare("SELECT COALESCE(SUM(views_count), 0) FROM posts WHERE user_id = ?");
+    $q->execute([$userId]);
+    $allPostViews = (int)$q->fetchColumn();
+} catch (Exception $e) {}
 
-$totalViews = $reelViews + $postViews;
+$totalViews = max($reelViews + $postViews, $allReelViews + $allPostViews);
 
 // B. Engagement (Likes + Comments + Shares in this period)
 $totalLikes = 0;

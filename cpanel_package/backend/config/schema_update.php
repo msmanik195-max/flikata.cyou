@@ -142,6 +142,224 @@ function ensureVerificationAndWalletSchema($pdo) {
               ('Rocket Personal', '01900000000', '', 'Withdraw to 12 digit Rocket number. Minimum ৳ 50, Maximum ৳ 25,000.', 50.00, 25000.00),
               ('Bank Transfer', 'Bank Info', '', 'Provide your Bank Name, Branch, Account Holder Name, and Account Number.', 500.00, 50000.00);");
         }
+        // Users columns
+        try { $pdo->exec("ALTER TABLE `users` ADD COLUMN `is_monetized` TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
+        try { $pdo->exec("ALTER TABLE `users` ADD COLUMN `followers_count` INT NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+        try { $pdo->exec("ALTER TABLE `users` ADD COLUMN `following_count` INT NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+        try { $pdo->exec("ALTER TABLE `users` ADD COLUMN `is_verified` TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
+        try { $pdo->exec("ALTER TABLE `users` ADD COLUMN `is_banned` TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
+
+        // Posts & Reels views column
+        try { $pdo->exec("ALTER TABLE `posts` ADD COLUMN `views_count` INT NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+        try { $pdo->exec("ALTER TABLE `reels` ADD COLUMN `views_count` INT NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+
+        // Follows Table
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `follows` (
+              `id` INT AUTO_INCREMENT PRIMARY KEY,
+              `follower_id` INT NOT NULL,
+              `following_id` INT NOT NULL,
+              `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+              UNIQUE KEY `idx_follow_unique` (`follower_id`, `following_id`),
+              FOREIGN KEY (`follower_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+              FOREIGN KEY (`following_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+        } catch (Exception $e) {}
+
+        // Real Reel Views Table (Unique per user, no self-views)
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `reel_views` (
+              `id` INT AUTO_INCREMENT PRIMARY KEY,
+              `reel_id` INT NOT NULL,
+              `user_id` INT NOT NULL,
+              `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+              UNIQUE KEY `idx_reel_user_view` (`reel_id`, `user_id`),
+              INDEX (`reel_id`),
+              INDEX (`user_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+        } catch (Exception $e) {}
+
+        // Real Post Views Table (Unique per user, no self-views)
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `post_views` (
+              `id` INT AUTO_INCREMENT PRIMARY KEY,
+              `post_id` INT NOT NULL,
+              `user_id` INT NOT NULL,
+              `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+              UNIQUE KEY `idx_post_user_view` (`post_id`, `user_id`),
+              INDEX (`post_id`),
+              INDEX (`user_id`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+        } catch (Exception $e) {}
+
+        // Monetization Settings Table
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `monetization_settings` (
+              `id` INT PRIMARY KEY DEFAULT 1,
+              `min_followers` INT DEFAULT 1000,
+              `min_posts` INT DEFAULT 10,
+              `min_reels` INT DEFAULT 5,
+              `min_account_age_days` INT DEFAULT 30,
+              `dashboard_posts_limit` INT DEFAULT 5,
+              `revenue_share_percent` INT DEFAULT 55,
+              `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+            $pdo->exec("INSERT INTO `monetization_settings` (`id`, `min_followers`, `min_posts`, `min_reels`, `min_account_age_days`, `dashboard_posts_limit`, `revenue_share_percent`) 
+              VALUES (1, 1000, 10, 5, 30, 5, 55)
+              ON DUPLICATE KEY UPDATE `id` = `id`;");
+        } catch (Exception $e) {}
+
+        // Monetization Requests Table
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `monetization_requests` (
+              `id` INT AUTO_INCREMENT PRIMARY KEY,
+              `user_id` INT NOT NULL,
+              `followers_count` INT DEFAULT 0,
+              `posts_count` INT DEFAULT 0,
+              `reels_count` INT DEFAULT 0,
+              `account_age_days` INT DEFAULT 0,
+              `status` ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+              `rejection_reason` TEXT DEFAULT NULL,
+              `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+              `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+              INDEX (`user_id`),
+              INDEX (`status`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+        } catch (Exception $e) {}
+
+        // Marketplace Products Table
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `marketplace_products` (
+              `id` INT AUTO_INCREMENT PRIMARY KEY,
+              `user_id` INT NOT NULL,
+              `title` VARCHAR(255) NOT NULL,
+              `price` DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+              `currency` VARCHAR(10) NOT NULL DEFAULT 'BDT',
+              `category` VARCHAR(100) NOT NULL DEFAULT 'General',
+              `condition_state` VARCHAR(50) NOT NULL DEFAULT 'New',
+              `location` VARCHAR(150) NOT NULL DEFAULT 'Dhaka, Bangladesh',
+              `description` TEXT DEFAULT NULL,
+              `image_url` TEXT DEFAULT NULL,
+              `is_sold` TINYINT(1) DEFAULT 0,
+              `views_count` INT DEFAULT 0,
+              `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+              `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+              INDEX (`user_id`),
+              INDEX (`category`),
+              INDEX (`is_sold`),
+              FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+        } catch (Exception $e) {}
+
+        // Pages Table
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `pages` (
+              `id` INT AUTO_INCREMENT PRIMARY KEY,
+              `user_id` INT NOT NULL,
+              `name` VARCHAR(255) NOT NULL,
+              `category` VARCHAR(100) NOT NULL,
+              `bio` TEXT DEFAULT NULL,
+              `logo_url` TEXT DEFAULT NULL,
+              `banner_url` TEXT DEFAULT NULL,
+              `email` VARCHAR(255) DEFAULT NULL,
+              `phone` VARCHAR(50) DEFAULT NULL,
+              `website` VARCHAR(255) DEFAULT NULL,
+              `followers_count` INT DEFAULT 0,
+              `likes_count` INT DEFAULT 0,
+              `is_verified` TINYINT(1) DEFAULT 0,
+              `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+              `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+              INDEX (`user_id`),
+              INDEX (`name`)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+        } catch (Exception $e) {}
+
+        // Page Settings Table (Configurable max pages allowed per profile)
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `page_settings` (
+              `id` INT PRIMARY KEY DEFAULT 1,
+              `max_pages_per_user` INT DEFAULT 5,
+              `description` VARCHAR(255) DEFAULT 'Max pages allowed per user profile',
+              `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+            $pdo->exec("INSERT INTO `page_settings` (`id`, `max_pages_per_user`, `description`)
+              VALUES (1, 5, 'Max pages allowed per user profile')
+              ON DUPLICATE KEY UPDATE `id` = 1;");
+        } catch (Exception $e) {}
+
+        // Ensure posts table has page_id column
+        try {
+            $pdo->exec("ALTER TABLE `posts` ADD COLUMN `page_id` INT DEFAULT NULL");
+        } catch (Exception $e) {}
+
+        // Leaderboard Settings Table (Configurable user limit for Leaderboard)
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `leaderboard_settings` (
+              `id` INT PRIMARY KEY DEFAULT 1,
+              `user_limit` INT DEFAULT 20,
+              `description` VARCHAR(255) DEFAULT 'Max users displayed on Leaderboard',
+              `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+            $pdo->exec("INSERT INTO `leaderboard_settings` (`id`, `user_limit`, `description`)
+              VALUES (1, 20, 'Max users displayed on Leaderboard')
+              ON DUPLICATE KEY UPDATE `id` = 1;");
+        } catch (Exception $e) {}
+
+        // App Feature Settings Table & Columns
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS `app_feature_settings` (
+              `id` INT PRIMARY KEY DEFAULT 1,
+              `allow_page_creation` TINYINT(1) NOT NULL DEFAULT 1,
+              `allow_login` TINYINT(1) NOT NULL DEFAULT 1,
+              `allow_registration` TINYINT(1) NOT NULL DEFAULT 1,
+              `allow_chat` TINYINT(1) NOT NULL DEFAULT 1,
+              `feed_show_text_posts` TINYINT(1) NOT NULL DEFAULT 1,
+              `feed_show_image_posts` TINYINT(1) NOT NULL DEFAULT 1,
+              `feed_show_video_posts` TINYINT(1) NOT NULL DEFAULT 1,
+              `daily_text_limit` INT NOT NULL DEFAULT 30,
+              `daily_image_limit` INT NOT NULL DEFAULT 20,
+              `daily_video_limit` INT NOT NULL DEFAULT 10,
+              `daily_story_limit` INT NOT NULL DEFAULT 15,
+              `default_page_create_limit` INT NOT NULL DEFAULT 5,
+              `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
+
+            $pdo->exec("INSERT INTO `app_feature_settings` (`id`, `allow_page_creation`, `allow_login`, `allow_registration`, `allow_chat`, `feed_show_text_posts`, `feed_show_image_posts`, `feed_show_video_posts`, `daily_text_limit`, `daily_image_limit`, `daily_video_limit`, `daily_story_limit`, `default_page_create_limit`)
+              VALUES (1, 1, 1, 1, 1, 1, 1, 1, 30, 20, 10, 15, 5)
+              ON DUPLICATE KEY UPDATE `id` = 1;");
+        } catch (Exception $e) {}
+
+        // Add columns to app_feature_settings if missing
+        $featureCols = [
+            "allow_reels"               => "TINYINT(1) NOT NULL DEFAULT 1",
+            "users_per_page"            => "INT NOT NULL DEFAULT 20",
+            "feed_show_text_posts"      => "TINYINT(1) NOT NULL DEFAULT 1",
+            "feed_show_image_posts"     => "TINYINT(1) NOT NULL DEFAULT 1",
+            "feed_show_video_posts"     => "TINYINT(1) NOT NULL DEFAULT 1",
+            "daily_text_limit"          => "INT NOT NULL DEFAULT 30",
+            "daily_image_limit"         => "INT NOT NULL DEFAULT 20",
+            "daily_video_limit"         => "INT NOT NULL DEFAULT 10",
+            "daily_story_limit"         => "INT NOT NULL DEFAULT 15",
+            "default_page_create_limit" => "INT NOT NULL DEFAULT 5"
+        ];
+        foreach ($featureCols as $col => $def) {
+            try { $pdo->exec("ALTER TABLE `app_feature_settings` ADD COLUMN `{$col}` {$def}"); } catch (Exception $e) {}
+        }
+
+        // Add custom limit columns to users table
+        $userLimitCols = [
+            "custom_page_limit"  => "INT NULL DEFAULT NULL",
+            "custom_text_limit"  => "INT NULL DEFAULT NULL",
+            "custom_image_limit" => "INT NULL DEFAULT NULL",
+            "custom_video_limit" => "INT NULL DEFAULT NULL",
+            "custom_story_limit" => "INT NULL DEFAULT NULL"
+        ];
+        foreach ($userLimitCols as $col => $def) {
+            try { $pdo->exec("ALTER TABLE `users` ADD COLUMN `{$col}` {$def}"); } catch (Exception $e) {}
+        }
     } catch (Exception $e) {}
 
     $migrated = true;

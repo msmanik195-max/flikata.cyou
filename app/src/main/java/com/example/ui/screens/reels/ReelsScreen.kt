@@ -124,7 +124,7 @@ import kotlinx.coroutines.launch
 fun ReelsScreen(
     viewModel: MainViewModel
 ) {
-    // Observe reels from ViewModel so newly created video posts & reels appear here
+    val featureSettings by viewModel.featureSettings.collectAsState()
     val reelsList by viewModel.reels.collectAsState()
     val currentUser by viewModel.currentUser.collectAsState()
     val targetReelId by viewModel.targetReelId.collectAsState()
@@ -132,8 +132,10 @@ fun ReelsScreen(
     var reelToDelete by remember { mutableStateOf<ReelModel?>(null) }
     val pagerState = rememberPagerState(pageCount = { reelsList.size })
 
-    LaunchedEffect(Unit) {
-        viewModel.syncReelsFromServer()
+    LaunchedEffect(featureSettings.allowReels) {
+        if (featureSettings.allowReels) {
+            viewModel.syncReelsFromServer()
+        }
     }
 
     LaunchedEffect(targetReelId, reelsList) {
@@ -143,6 +145,14 @@ fun ReelsScreen(
             if (index != -1) {
                 pagerState.scrollToPage(index)
             }
+        }
+    }
+
+    // Automatically record watched reel into local Video History storage
+    LaunchedEffect(pagerState.currentPage, reelsList) {
+        if (featureSettings.allowReels && reelsList.isNotEmpty() && pagerState.currentPage in reelsList.indices) {
+            val currentReel = reelsList[pagerState.currentPage]
+            viewModel.recordReelViewHistory(currentReel)
         }
     }
 
@@ -163,7 +173,53 @@ fun ReelsScreen(
             .fillMaxSize()
             .background(Color.Black)
     ) {
-        if (reelsList.isEmpty()) {
+        if (!featureSettings.allowReels) {
+            // Reels Feature Disabled Notice
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFF0F172A)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(32.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(80.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFEF4444).copy(alpha = 0.15f))
+                            .border(1.5.dp, Color(0xFFEF4444).copy(alpha = 0.4f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_custom_reels),
+                            contentDescription = null,
+                            tint = Color(0xFFEF4444),
+                            modifier = Modifier.size(40.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(20.dp))
+                    Text(
+                        text = "রিলস সুবিধা সাময়িকভাবে বন্ধ আছে",
+                        color = Color.White,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "অ্যাডমিন কর্তৃক রিলস ভিডিও ফিচার সাময়িকভাবে বন্ধ রাখা হয়েছে। পুনরায় চালু হলে ভিডিওগুলো দেখতে পাবেন।",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 20.sp
+                    )
+                }
+            }
+        } else if (reelsList.isEmpty()) {
             // Clean Empty State when no reels exist
             Box(
                 modifier = Modifier
