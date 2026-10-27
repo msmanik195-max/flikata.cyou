@@ -1820,6 +1820,20 @@ class FlikataRepository(
             Result.success(com.example.data.model.FeatureSettingsResponse())
         }
     }
+
+    suspend fun updateFeatureSetting(feature: String, enabled: Boolean): Result<com.example.data.model.FeatureSettingsResponse> {
+        return try {
+            val valStr = if (enabled) "1" else "0"
+            val resp = ApiClient.apiService.updateFeatureSettings(mapOf(feature to valStr))
+            if (resp.isSuccessful && resp.body() != null) {
+                Result.success(resp.body()!!)
+            } else {
+                fetchFeatureSettings()
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
 
 

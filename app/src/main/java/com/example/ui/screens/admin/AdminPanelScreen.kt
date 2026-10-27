@@ -92,9 +92,12 @@ import com.example.ui.components.SoftUITheme
 import com.example.ui.components.VerifiedBadge
 import com.example.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.painterResource
+import com.example.R
 import java.util.Locale
 
 enum class AdminSection {
+    FEATURE_CONTROLS,
     PACKAGES,
     VERIFICATION_REQUESTS,
     DEPOSIT_METHODS,
@@ -215,6 +218,7 @@ fun AdminPanelScreen(
 
     LaunchedEffect(currentSection) {
         when (currentSection) {
+            AdminSection.FEATURE_CONTROLS -> viewModel.refreshFeatureSettings()
             AdminSection.PACKAGES -> loadPackagesAndSettings()
             AdminSection.VERIFICATION_REQUESTS -> loadVerRequests(verReqTab)
             AdminSection.DEPOSIT_METHODS -> loadDepositMethods()
@@ -226,6 +230,7 @@ fun AdminPanelScreen(
 
     val cardBg = if (isDark) Color(0xFF1E222B) else Color.White
     val cardBorder = if (isDark) Color(0xFF2D323E) else Color(0xFFE4E9F2)
+    val featureSettings by viewModel.featureSettings.collectAsState()
 
     Box(
         modifier = Modifier
@@ -279,6 +284,11 @@ fun AdminPanelScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 AdminSectionButton(
+                    title = "ফিচার ও ফিড কন্ট্রোল",
+                    isSelected = currentSection == AdminSection.FEATURE_CONTROLS
+                ) { currentSection = AdminSection.FEATURE_CONTROLS }
+
+                AdminSectionButton(
                     title = "Badge Pkg",
                     isSelected = currentSection == AdminSection.PACKAGES
                 ) { currentSection = AdminSection.PACKAGES }
@@ -311,6 +321,171 @@ fun AdminPanelScreen(
 
             // Body Content based on active section
             when (currentSection) {
+                // ==========================================
+                // 0. APP FEATURE & FEED CONTROLS
+                // ==========================================
+                AdminSection.FEATURE_CONTROLS -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        // Header Banner Card
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .shadow(2.dp, RoundedCornerShape(16.dp))
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(if (isDark) Color(0xFF1E2128) else Color(0xFFEEF2FF))
+                                .border(1.dp, if (isDark) Color(0xFF282C37) else Color(0xFFC7D2FE), RoundedCornerShape(16.dp))
+                                .padding(16.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(46.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF4F46E5)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Save,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = "ফিচার ও ফিড কন্ট্রোল (Feature & Feed Controls)",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 16.sp,
+                                        color = SoftUITheme.TextDark
+                                    )
+                                    Text(
+                                        text = "যেকোনো টগল অন/অফ করলে সাথে সাথে কার্যকর হয়",
+                                        fontSize = 12.sp,
+                                        color = SoftUITheme.TextSecondary
+                                    )
+                                }
+                            }
+                        }
+
+                        // 1. REELS VIDEO PAGE TOGGLE
+                        AdminFeatureToggleCard(
+                            title = "রিলস (Reels) ভিডিও পেজ",
+                            subtitle = if (featureSettings.allowReels) 
+                                "চালু আছে: রিলস পেজে সকল ভিডিও রিলস দেখা যাবে" 
+                                else "বন্ধ আছে: রিলস পেজে কোনো ভিডিও দেখাবে না এবং নোটিশ দেখাবে 'রিলস সুবিধা সাময়িকভাবে বন্ধ আছে'",
+                            isChecked = featureSettings.allowReels,
+                            accentColor = Color(0xFF9333EA),
+                            isDark = isDark,
+                            onToggle = { isChecked ->
+                                viewModel.updateFeatureSetting("allow_reels", isChecked)
+                                Toast.makeText(context, if (isChecked) "রিলস ভিডিও পেজ চালু করা হয়েছে" else "রিলস ভিডিও পেজ বন্ধ করা হয়েছে", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+
+                        // 2. HOME FEED VIDEO POSTS TOGGLE
+                        AdminFeatureToggleCard(
+                            title = "হোম ফিডে ভিডিও পোস্ট",
+                            subtitle = if (featureSettings.feedShowVideoPosts) 
+                                "চালু আছে: হোম ফিডে ভিডিও সংবলিত পোস্টগুলো দেখা যাবে" 
+                                else "বন্ধ আছে: শুধুমাত্র হোম ফিড থেকে ভিডিও লুকানো থাকবে। রিলস পেজে ভিডিও স্বাভাবিক থাকবে (মুছবে না)",
+                            isChecked = featureSettings.feedShowVideoPosts,
+                            accentColor = Color(0xFFEF4444),
+                            isDark = isDark,
+                            onToggle = { isChecked ->
+                                viewModel.updateFeatureSetting("feed_show_video_posts", isChecked)
+                                Toast.makeText(context, if (isChecked) "হোম ফিডে ভিডিও পোস্ট চালু করা হয়েছে" else "হোম ফিডে ভিডিও পোস্ট বন্ধ করা হয়েছে (রিলসে থাকবে)", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+
+                        // 3. HOME FEED IMAGE POSTS TOGGLE
+                        AdminFeatureToggleCard(
+                            title = "হোম ফিডে ইমেজ পোস্ট",
+                            subtitle = if (featureSettings.feedShowImagePosts) "হোম ফিডে ছবিযুক্ত পোস্ট দেখা যাবে" else "হোম ফিডে ছবিযুক্ত পোস্ট লুকানো থাকবে",
+                            isChecked = featureSettings.feedShowImagePosts,
+                            accentColor = Color(0xFF0EA5E9),
+                            isDark = isDark,
+                            onToggle = { isChecked ->
+                                viewModel.updateFeatureSetting("feed_show_image_posts", isChecked)
+                                Toast.makeText(context, "ইমেজ পোস্ট সেটিংস আপডেট হয়েছে", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+
+                        // 4. HOME FEED TEXT POSTS TOGGLE
+                        AdminFeatureToggleCard(
+                            title = "হোম ফিডে টেক্সট পোস্ট",
+                            subtitle = if (featureSettings.feedShowTextPosts) "হোম ফিডে শুধুমাত্র লেখার পোস্ট দেখা যাবে" else "হোম ফিডে লেখার পোস্ট লুকানো থাকবে",
+                            isChecked = featureSettings.feedShowTextPosts,
+                            accentColor = Color(0xFF3B82F6),
+                            isDark = isDark,
+                            onToggle = { isChecked ->
+                                viewModel.updateFeatureSetting("feed_show_text_posts", isChecked)
+                                Toast.makeText(context, "টেক্সট পোস্ট সেটিংস আপডেট হয়েছে", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+
+                        // 5. ALLOW PAGE CREATION
+                        AdminFeatureToggleCard(
+                            title = "পেজ তৈরি করার অনুমতি",
+                            subtitle = if (featureSettings.allowPageCreation) "ইউজাররা নতুন পেজ খুলতে পারবেন" else "পেজ তৈরি বন্ধ: ক্লিক করলে পপ-আপ মেসেজ আসবে",
+                            isChecked = featureSettings.allowPageCreation,
+                            accentColor = Color(0xFF10B981),
+                            isDark = isDark,
+                            onToggle = { isChecked ->
+                                viewModel.updateFeatureSetting("allow_page_creation", isChecked)
+                                Toast.makeText(context, "পেজ তৈরি সেটিংস আপডেট হয়েছে", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+
+                        // 6. ALLOW REGISTRATION
+                        AdminFeatureToggleCard(
+                            title = "নতুন রেজিস্ট্রেশন সুবিধা",
+                            subtitle = if (featureSettings.allowRegistration) "নতুন ইউজার সাইন আপ করতে পারবেন" else "রেজিস্ট্রেশন বন্ধ: নোটিশ দেখাবে 'রেজিস্ট্রেশন সাময়িকভাবে বন্ধ আছে'",
+                            isChecked = featureSettings.allowRegistration,
+                            accentColor = Color(0xFFF59E0B),
+                            isDark = isDark,
+                            onToggle = { isChecked ->
+                                viewModel.updateFeatureSetting("allow_registration", isChecked)
+                                Toast.makeText(context, "রেজিস্ট্রেশন সেটিংস আপডেট হয়েছে", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+
+                        // 7. ALLOW LOGIN
+                        AdminFeatureToggleCard(
+                            title = "ইউজার লগইন সুবিধা",
+                            subtitle = if (featureSettings.allowLogin) "ইউজাররা লগইন করতে পারবেন" else "লগইন বন্ধ: নোটিশ দেখাবে 'লগইন সাময়িকভাবে বন্ধ আছে'",
+                            isChecked = featureSettings.allowLogin,
+                            accentColor = Color(0xFF6366F1),
+                            isDark = isDark,
+                            onToggle = { isChecked ->
+                                viewModel.updateFeatureSetting("allow_login", isChecked)
+                                Toast.makeText(context, "লগইন সেটিংস আপডেট হয়েছে", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+
+                        // 8. ALLOW CHAT
+                        AdminFeatureToggleCard(
+                            title = "চ্যাট অপশন সুবিধা",
+                            subtitle = if (featureSettings.allowChat) "ইউজাররা চ্যাটে মেসেজ পাঠাতে পারবেন" else "চ্যাট বন্ধ: নোটিশ দেখাবে 'চ্যাট অপশন সাময়িকভাবে বন্ধ আছে'",
+                            isChecked = featureSettings.allowChat,
+                            accentColor = Color(0xFF06B6D4),
+                            isDark = isDark,
+                            onToggle = { isChecked ->
+                                viewModel.updateFeatureSetting("allow_chat", isChecked)
+                                Toast.makeText(context, "চ্যাট সুবিধা সেটিংস আপডেট হয়েছে", Toast.LENGTH_SHORT).show()
+                            }
+                        )
+
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
+                }
+
                 // ==========================================
                 // 1. VERIFICATION PACKAGES & REQUIREMENTS
                 // ==========================================
@@ -1766,3 +1941,69 @@ private fun AdminSectionButton(
         )
     }
 }
+
+@Composable
+private fun AdminFeatureToggleCard(
+    title: String,
+    subtitle: String,
+    isChecked: Boolean,
+    accentColor: Color,
+    isDark: Boolean,
+    onToggle: (Boolean) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .shadow(1.dp, RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (isDark) Color(0xFF1E2128) else Color.White)
+            .border(
+                1.dp,
+                if (isChecked) accentColor.copy(alpha = 0.4f) else (if (isDark) Color(0xFF282C37) else Color(0xFFE2E8F0)),
+                RoundedCornerShape(16.dp)
+            )
+            .padding(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(if (isChecked) accentColor else Color(0xFF94A3B8))
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = title,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = SoftUITheme.TextDark
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = subtitle,
+                    fontSize = 12.sp,
+                    color = SoftUITheme.TextSecondary,
+                    lineHeight = 17.sp
+                )
+            }
+            Switch(
+                checked = isChecked,
+                onCheckedChange = onToggle,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = accentColor,
+                    uncheckedThumbColor = Color.White,
+                    uncheckedTrackColor = if (isDark) Color(0xFF334155) else Color(0xFFCBD5E1)
+                )
+            )
+        }
+    }
+}
+

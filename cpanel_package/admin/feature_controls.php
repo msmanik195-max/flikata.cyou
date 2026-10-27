@@ -15,6 +15,7 @@ try {
       `allow_login` TINYINT(1) NOT NULL DEFAULT 1,
       `allow_registration` TINYINT(1) NOT NULL DEFAULT 1,
       `allow_chat` TINYINT(1) NOT NULL DEFAULT 1,
+      `allow_reels` TINYINT(1) NOT NULL DEFAULT 1,
       `feed_show_text_posts` TINYINT(1) NOT NULL DEFAULT 1,
       `feed_show_image_posts` TINYINT(1) NOT NULL DEFAULT 1,
       `feed_show_video_posts` TINYINT(1) NOT NULL DEFAULT 1,
@@ -23,11 +24,23 @@ try {
       `daily_video_limit` INT NOT NULL DEFAULT 10,
       `daily_story_limit` INT NOT NULL DEFAULT 15,
       `default_page_create_limit` INT NOT NULL DEFAULT 5,
+      `users_per_page` INT NOT NULL DEFAULT 20,
       `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;");
 
-    $pdo->exec("INSERT INTO `app_feature_settings` (`id`, `allow_page_creation`, `allow_login`, `allow_registration`, `allow_chat`, `feed_show_text_posts`, `feed_show_image_posts`, `feed_show_video_posts`, `daily_text_limit`, `daily_image_limit`, `daily_video_limit`, `daily_story_limit`, `default_page_create_limit`)
-      VALUES (1, 1, 1, 1, 1, 1, 1, 1, 30, 20, 10, 15, 5)
+    $alterCols = [
+        "allow_reels"           => "TINYINT(1) NOT NULL DEFAULT 1",
+        "users_per_page"        => "INT NOT NULL DEFAULT 20",
+        "feed_show_text_posts"  => "TINYINT(1) NOT NULL DEFAULT 1",
+        "feed_show_image_posts" => "TINYINT(1) NOT NULL DEFAULT 1",
+        "feed_show_video_posts" => "TINYINT(1) NOT NULL DEFAULT 1"
+    ];
+    foreach ($alterCols as $c => $def) {
+        try { $pdo->exec("ALTER TABLE `app_feature_settings` ADD COLUMN `{$c}` {$def}"); } catch (Exception $e) {}
+    }
+
+    $pdo->exec("INSERT INTO `app_feature_settings` (`id`, `allow_page_creation`, `allow_login`, `allow_registration`, `allow_chat`, `allow_reels`, `feed_show_text_posts`, `feed_show_image_posts`, `feed_show_video_posts`, `daily_text_limit`, `daily_image_limit`, `daily_video_limit`, `daily_story_limit`, `default_page_create_limit`, `users_per_page`)
+      VALUES (1, 1, 1, 1, 1, 1, 1, 1, 1, 30, 20, 10, 15, 5, 20)
       ON DUPLICATE KEY UPDATE `id` = 1;");
 } catch (Exception $e) {}
 
@@ -114,20 +127,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_all_settings']))
 
 // Fetch Current Settings
 $stmt = $pdo->query("SELECT * FROM app_feature_settings WHERE id = 1 LIMIT 1");
-$settings = $stmt ? $stmt->fetch(PDO::FETCH_ASSOC) : [
-    'allow_page_creation'       => 1,
-    'allow_login'               => 1,
-    'allow_registration'        => 1,
-    'allow_chat'                => 1,
-    'feed_show_text_posts'      => 1,
-    'feed_show_image_posts'     => 1,
-    'feed_show_video_posts'     => 1,
-    'daily_text_limit'          => 30,
-    'daily_image_limit'         => 20,
-    'daily_video_limit'         => 10,
-    'daily_story_limit'         => 15,
-    'default_page_create_limit' => 5
-];
+$settings = $stmt ? $stmt->fetch(PDO::FETCH_ASSOC) : [];
+if (empty($settings)) {
+    $settings = [
+        'allow_page_creation'       => 1,
+        'allow_login'               => 1,
+        'allow_registration'        => 1,
+        'allow_chat'                => 1,
+        'allow_reels'               => 1,
+        'feed_show_text_posts'      => 1,
+        'feed_show_image_posts'     => 1,
+        'feed_show_video_posts'     => 1,
+        'daily_text_limit'          => 30,
+        'daily_image_limit'         => 20,
+        'daily_video_limit'         => 10,
+        'daily_story_limit'         => 15,
+        'default_page_create_limit' => 5,
+        'users_per_page'            => 20
+    ];
+}
+if (!isset($settings['allow_reels'])) {
+    $settings['allow_reels'] = 1;
+}
 
 require_once __DIR__ . '/includes/header.php';
 ?>
@@ -275,9 +296,25 @@ require_once __DIR__ . '/includes/header.php';
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- 5. Reels Video System Toggle Card -->
-        <div class="col-12 col-md-6 col-lg-4">
+    <!-- SECTION 2: CONTENT & REELS VISIBILITY TOGGLES -->
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <div>
+            <h5 class="fw-bold text-dark mb-1 d-flex align-items-center gap-2">
+                <i class="bi bi-collection-play-fill text-primary"></i>
+                <?= ($currentLang === 'en') ? '2. Reels & Home Feed Video Visibility Controls' : '২. রিলস ও হোম ফিড কনটেন্ট প্রদর্শন নিয়ন্ত্রণ (Reels & Feed Toggles)' ?>
+            </h5>
+            <small class="text-muted">
+                রিলস ভিডিও পেজ চালু/বন্ধ রাখুন এবং হোম ফিডে ভিডিও প্রদর্শন আলাদাভাবে নিয়ন্ত্রণ করুন।
+            </small>
+        </div>
+        <span class="badge bg-success-subtle text-success border px-2 py-1">লাইভ সিঙ্ক</span>
+    </div>
+
+    <div class="row g-4 mb-5">
+        <!-- 1. Reels Video Page Toggle Card -->
+        <div class="col-12 col-md-6 col-lg-3">
             <div class="card-custom h-100 p-4 shadow-sm" style="border-top: 3px solid #9333ea !important;">
                 <div class="d-flex align-items-start justify-content-between mb-3">
                     <div class="p-2.5 rounded-3" style="background-color: #f3e8ff; color: #9333ea;">
@@ -287,57 +324,45 @@ require_once __DIR__ . '/includes/header.php';
                         <input class="form-check-input" type="checkbox" name="allow_reels" value="1" id="toggleReels" <?= !empty($settings['allow_reels']) ? 'checked' : '' ?> onchange="quickToggle('allow_reels', this.checked)">
                     </div>
                 </div>
-                <h6 class="fw-bold text-dark mb-1"><?= ($currentLang === 'en') ? 'Reels Video Feature' : 'রিলস (Reels) ভিডিও ফিচার' ?></h6>
-                <span class="badge <?= !empty($settings['allow_reels']) ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger' ?> border mb-2">
+                <h6 class="fw-bold text-dark mb-1">রিলস (Reels) ভিডিও পেজ</h6>
+                <span id="badge_allow_reels" class="badge <?= !empty($settings['allow_reels']) ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger' ?> border mb-2">
                     <?= !empty($settings['allow_reels']) ? 'চালু আছে' : 'বন্ধ আছে' ?>
                 </span>
                 <p class="text-muted small mb-2">
-                    বন্ধ থাকলে রিলস পেজে ভিডিও দেখাবে না এবং নোটিশ দেখাবে:
+                    রিয়েলস পেজে ভিডিও দেখাবে নাকি বন্ধ থাকবে তা অন/অফ করুন:
                 </p>
                 <div class="p-2 rounded-2 bg-light border small text-dark fw-bold">
-                    "রিলস সুবিধা সাময়িকভাবে বন্ধ আছে"
+                    বন্ধ থাকলে রিয়েলস পেজে দেখাবে: "রিলস সুবিধা সাময়িকভাবে বন্ধ আছে।"
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- SECTION 2: HOME FEED VISIBILITY TOGGLES -->
-    <div class="d-flex align-items-center justify-content-between mb-3">
-        <div>
-            <h5 class="fw-bold text-dark mb-1 d-flex align-items-center gap-2">
-                <i class="bi bi-layout-text-window-reverse text-indigo"></i>
-                <?= ($currentLang === 'en') ? '2. Home Feed Post Type Filters' : '২. হোম ফিড কনটেন্ট প্রদর্শন নিয়ন্ত্রণ (Home Feed)' ?>
-            </h5>
-            <small class="text-muted">
-                হোম ফিডে কোন কোন ধরণের পোস্ট প্রদর্শিত হবে তা অন/অফ করুন। যেমন শুধু টেক্সট অন রাখলে হোম ফিডে ভিডিও বা ইমেজ পোস্ট আসবে না।
-            </small>
-        </div>
-    </div>
-
-    <div class="row g-4 mb-5">
-        <!-- Feed Text Posts Toggle -->
-        <div class="col-12 col-md-4">
-            <div class="card-custom h-100 p-4 shadow-sm">
+        <!-- 2. Home Feed Video Posts Toggle Card (Home Feed Only) -->
+        <div class="col-12 col-md-6 col-lg-3">
+            <div class="card-custom h-100 p-4 shadow-sm" style="border-top: 3px solid #ef4444 !important;">
                 <div class="d-flex align-items-start justify-content-between mb-3">
-                    <div class="p-2.5 rounded-3 bg-primary-subtle text-primary">
-                        <i class="bi bi-file-text-fill fs-4"></i>
+                    <div class="p-2.5 rounded-3 bg-danger-subtle text-danger">
+                        <i class="bi bi-play-circle-fill fs-4"></i>
                     </div>
                     <div class="form-check form-switch fs-4 mb-0">
-                        <input class="form-check-input" type="checkbox" name="feed_show_text_posts" value="1" id="toggleFeedText" <?= !empty($settings['feed_show_text_posts']) ? 'checked' : '' ?> onchange="quickToggle('feed_show_text_posts', this.checked)">
+                        <input class="form-check-input" type="checkbox" name="feed_show_video_posts" value="1" id="toggleFeedVideo" <?= !empty($settings['feed_show_video_posts']) ? 'checked' : '' ?> onchange="quickToggle('feed_show_video_posts', this.checked)">
                     </div>
                 </div>
-                <h6 class="fw-bold text-dark mb-1">টেক্সট পোস্ট প্রদর্শন (Text Posts)</h6>
-                <span class="badge <?= !empty($settings['feed_show_text_posts']) ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' ?> border mb-2">
-                    <?= !empty($settings['feed_show_text_posts']) ? 'ফিডে প্রদর্শিত হবে' : 'ফিডে গোপন থাকবে' ?>
+                <h6 class="fw-bold text-dark mb-1">হোম ফিডে ভিডিও পোস্ট</h6>
+                <span id="badge_feed_show_video_posts" class="badge <?= !empty($settings['feed_show_video_posts']) ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' ?> border mb-2">
+                    <?= !empty($settings['feed_show_video_posts']) ? 'হোম ফিডে প্রদর্শিত হবে' : 'হোম ফিডে গোপন থাকবে' ?>
                 </span>
-                <p class="text-muted small mb-0">
-                    চালু থাকলে হোম ফিডে শুধু টেক্সট সংবলিত পোস্টগুলো দেখা যাবে।
+                <p class="text-muted small mb-2">
+                    বন্ধ থাকলে <strong>শুধুমাত্র হোম ফিড</strong> থেকে ভিডিও লুকানো থাকবে:
                 </p>
+                <div class="p-2 rounded-2 bg-light border small text-dark fw-bold">
+                    রিয়েলস পেজের ভিডিও কখনোই কাটবে না, রিয়েলস পেজে ভিডিও স্বাভাবিক থাকবে।
+                </div>
             </div>
         </div>
 
-        <!-- Feed Image Posts Toggle -->
-        <div class="col-12 col-md-4">
+        <!-- 3. Feed Image Posts Toggle -->
+        <div class="col-12 col-md-6 col-lg-3">
             <div class="card-custom h-100 p-4 shadow-sm">
                 <div class="d-flex align-items-start justify-content-between mb-3">
                     <div class="p-2.5 rounded-3 bg-info-subtle text-info">
@@ -347,33 +372,33 @@ require_once __DIR__ . '/includes/header.php';
                         <input class="form-check-input" type="checkbox" name="feed_show_image_posts" value="1" id="toggleFeedImage" <?= !empty($settings['feed_show_image_posts']) ? 'checked' : '' ?> onchange="quickToggle('feed_show_image_posts', this.checked)">
                     </div>
                 </div>
-                <h6 class="fw-bold text-dark mb-1">ইমেজ পোস্ট প্রদর্শন (Image Posts)</h6>
-                <span class="badge <?= !empty($settings['feed_show_image_posts']) ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' ?> border mb-2">
+                <h6 class="fw-bold text-dark mb-1">হোম ফিডে ইমেজ পোস্ট</h6>
+                <span id="badge_feed_show_image_posts" class="badge <?= !empty($settings['feed_show_image_posts']) ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' ?> border mb-2">
                     <?= !empty($settings['feed_show_image_posts']) ? 'ফিডে প্রদর্শিত হবে' : 'ফিডে গোপন থাকবে' ?>
                 </span>
                 <p class="text-muted small mb-0">
-                    চালু থাকলে ছবিযুক্ত পোস্টগুলো হোম ফিডে দেখা যাবে। বন্ধ থাকলে ইমেজ পোস্ট লুকিয়ে রাখা হবে।
+                    চালু থাকলে ছবিযুক্ত পোস্টগুলো হোম ফিডে দেখা যাবে। বন্ধ থাকলে ছবি লুকানো থাকবে।
                 </p>
             </div>
         </div>
 
-        <!-- Feed Video Posts Toggle -->
-        <div class="col-12 col-md-4">
+        <!-- 4. Feed Text Posts Toggle -->
+        <div class="col-12 col-md-6 col-lg-3">
             <div class="card-custom h-100 p-4 shadow-sm">
                 <div class="d-flex align-items-start justify-content-between mb-3">
-                    <div class="p-2.5 rounded-3 bg-danger-subtle text-danger">
-                        <i class="bi bi-play-circle-fill fs-4"></i>
+                    <div class="p-2.5 rounded-3 bg-primary-subtle text-primary">
+                        <i class="bi bi-file-text-fill fs-4"></i>
                     </div>
                     <div class="form-check form-switch fs-4 mb-0">
-                        <input class="form-check-input" type="checkbox" name="feed_show_video_posts" value="1" id="toggleFeedVideo" <?= !empty($settings['feed_show_video_posts']) ? 'checked' : '' ?> onchange="quickToggle('feed_show_video_posts', this.checked)">
+                        <input class="form-check-input" type="checkbox" name="feed_show_text_posts" value="1" id="toggleFeedText" <?= !empty($settings['feed_show_text_posts']) ? 'checked' : '' ?> onchange="quickToggle('feed_show_text_posts', this.checked)">
                     </div>
                 </div>
-                <h6 class="fw-bold text-dark mb-1">ভিডিও পোস্ট প্রদর্শন (Video Posts)</h6>
-                <span class="badge <?= !empty($settings['feed_show_video_posts']) ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' ?> border mb-2">
-                    <?= !empty($settings['feed_show_video_posts']) ? 'ফিডে প্রদর্শিত হবে' : 'ফিডে গোপন থাকবে' ?>
+                <h6 class="fw-bold text-dark mb-1">হোম ফিডে টেক্সট পোস্ট</h6>
+                <span id="badge_feed_show_text_posts" class="badge <?= !empty($settings['feed_show_text_posts']) ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary' ?> border mb-2">
+                    <?= !empty($settings['feed_show_text_posts']) ? 'ফিডে প্রদর্শিত হবে' : 'ফিডে গোপন থাকবে' ?>
                 </span>
                 <p class="text-muted small mb-0">
-                    চালু থাকলে ভিডিও পোস্ট ফিডে থাকবে। বন্ধ থাকলে ফিড থেকে সব ভিডিও পোস্ট অদৃশ্য থাকবে।
+                    চালু থাকলে হোম ফিডে শুধু টেক্সট সংবলিত পোস্টগুলো দেখা যাবে।
                 </p>
             </div>
         </div>
@@ -494,10 +519,24 @@ require_once __DIR__ . '/includes/header.php';
 
 <script>
 function quickToggle(featureName, isChecked) {
+    const badge = document.getElementById('badge_' + featureName);
     fetch('feature_controls.php?ajax_toggle=1&feature=' + encodeURIComponent(featureName))
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+                const isEnabled = data.new_value === 1;
+                if (badge) {
+                    if (featureName === 'feed_show_video_posts') {
+                        badge.className = 'badge border mb-2 ' + (isEnabled ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary');
+                        badge.textContent = isEnabled ? 'হোম ফিডে প্রদর্শিত হবে' : 'হোম ফিডে গোপন থাকবে';
+                    } else if (featureName.startsWith('feed_show_')) {
+                        badge.className = 'badge border mb-2 ' + (isEnabled ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary');
+                        badge.textContent = isEnabled ? 'ফিডে প্রদর্শিত হবে' : 'ফিডে গোপন থাকবে';
+                    } else {
+                        badge.className = 'badge border mb-2 ' + (isEnabled ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger');
+                        badge.textContent = isEnabled ? 'চালু আছে' : 'বন্ধ আছে';
+                    }
+                }
                 Swal.fire({
                     toast: true,
                     position: 'top-end',

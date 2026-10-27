@@ -532,6 +532,7 @@ CREATE TABLE IF NOT EXISTS `app_feature_settings` (
   `allow_login` TINYINT(1) NOT NULL DEFAULT 1,
   `allow_registration` TINYINT(1) NOT NULL DEFAULT 1,
   `allow_chat` TINYINT(1) NOT NULL DEFAULT 1,
+  `allow_reels` TINYINT(1) NOT NULL DEFAULT 1,
   `feed_show_text_posts` TINYINT(1) NOT NULL DEFAULT 1,
   `feed_show_image_posts` TINYINT(1) NOT NULL DEFAULT 1,
   `feed_show_video_posts` TINYINT(1) NOT NULL DEFAULT 1,
@@ -540,11 +541,12 @@ CREATE TABLE IF NOT EXISTS `app_feature_settings` (
   `daily_video_limit` INT NOT NULL DEFAULT 10,
   `daily_story_limit` INT NOT NULL DEFAULT 15,
   `default_page_create_limit` INT NOT NULL DEFAULT 5,
+  `users_per_page` INT NOT NULL DEFAULT 20,
   `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO `app_feature_settings` (`id`, `allow_page_creation`, `allow_login`, `allow_registration`, `allow_chat`, `feed_show_text_posts`, `feed_show_image_posts`, `feed_show_video_posts`, `daily_text_limit`, `daily_image_limit`, `daily_video_limit`, `daily_story_limit`, `default_page_create_limit`)
-VALUES (1, 1, 1, 1, 1, 1, 1, 1, 30, 20, 10, 15, 5)
+INSERT INTO `app_feature_settings` (`id`, `allow_page_creation`, `allow_login`, `allow_registration`, `allow_chat`, `allow_reels`, `feed_show_text_posts`, `feed_show_image_posts`, `feed_show_video_posts`, `daily_text_limit`, `daily_image_limit`, `daily_video_limit`, `daily_story_limit`, `default_page_create_limit`, `users_per_page`)
+VALUES (1, 1, 1, 1, 1, 1, 1, 1, 1, 30, 20, 10, 15, 5, 20)
 ON DUPLICATE KEY UPDATE `id` = 1;
 
 SET FOREIGN_KEY_CHECKS = 1;

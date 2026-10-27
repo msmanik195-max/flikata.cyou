@@ -824,6 +824,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun updateFeatureSetting(feature: String, enabled: Boolean) {
+        val current = featureSettings.value
+        val updated = when (feature) {
+            "allow_reels" -> current.copy(allowReels = enabled)
+            "feed_show_video_posts" -> current.copy(feedShowVideoPosts = enabled)
+            "feed_show_image_posts" -> current.copy(feedShowImagePosts = enabled)
+            "feed_show_text_posts" -> current.copy(feedShowTextPosts = enabled)
+            "allow_page_creation" -> current.copy(allowPageCreation = enabled)
+            "allow_login" -> current.copy(allowLogin = enabled)
+            "allow_registration" -> current.copy(allowRegistration = enabled)
+            "allow_chat" -> current.copy(allowChat = enabled)
+            else -> current
+        }
+        featureSettings.value = updated
+
+        viewModelScope.launch {
+            val res = repository.updateFeatureSetting(feature, enabled)
+            res.getOrNull()?.let {
+                featureSettings.value = it
+            }
+        }
+    }
+
     val posts: StateFlow<List<Post>> = kotlinx.coroutines.flow.combine(
         repository.allPosts,
         featureSettings

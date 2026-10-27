@@ -18,8 +18,7 @@ try {
     $fsStmt = $pdo->query("SELECT allow_reels FROM app_feature_settings WHERE id = 1 LIMIT 1");
     $allowReels = $fsStmt ? $fsStmt->fetchColumn() : 1;
     if ($allowReels !== false && (int)$allowReels === 0) {
-        header('Content-Type: application/json; charset=utf-8');
-        echo json_encode([], JSON_UNESCAPED_UNICODE);
+        jsonResponse(true, [], 'Reels are currently disabled');
         exit;
     }
 } catch (Exception $e) {}

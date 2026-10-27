@@ -17,6 +17,7 @@ try {
             'allow_login'               => 1,
             'allow_registration'        => 1,
             'allow_chat'                => 1,
+            'allow_reels'               => 1,
             'feed_show_text_posts'      => 1,
             'feed_show_image_posts'     => 1,
             'feed_show_video_posts'     => 1,
@@ -26,6 +27,25 @@ try {
             'daily_story_limit'         => 15,
             'default_page_create_limit' => 5
         ];
+    }
+
+    // Support POST for instant updates
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+        $updates = [];
+        $params = [];
+        $allowed = ['allow_reels', 'feed_show_video_posts', 'feed_show_image_posts', 'feed_show_text_posts', 'allow_page_creation', 'allow_login', 'allow_registration', 'allow_chat'];
+        foreach ($allowed as $f) {
+            if (isset($input[$f])) {
+                $val = (int)$input[$f];
+                $updates[] = "`$f` = ?";
+                $params[] = $val;
+                $row[$f] = $val;
+            }
+        }
+        if (!empty($updates)) {
+            $pdo->prepare("UPDATE app_feature_settings SET " . implode(', ', $updates) . " WHERE id = 1")->execute($params);
+        }
     }
 
     echo json_encode([
@@ -51,6 +71,7 @@ try {
         'allow_login'               => true,
         'allow_registration'        => true,
         'allow_chat'                => true,
+        'allow_reels'               => true,
         'feed_show_text_posts'      => true,
         'feed_show_image_posts'     => true,
         'feed_show_video_posts'     => true,

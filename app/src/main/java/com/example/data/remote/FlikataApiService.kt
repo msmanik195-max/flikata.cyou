@@ -616,6 +616,12 @@ interface FlikataApiService {
 
     @GET("app/get_feature_settings.php")
     suspend fun getFeatureSettings(): Response<com.example.data.model.FeatureSettingsResponse>
+
+    @FormUrlEncoded
+    @POST("app/get_feature_settings.php")
+    suspend fun updateFeatureSettings(
+        @retrofit2.http.FieldMap fields: Map<String, String>
+    ): Response<com.example.data.model.FeatureSettingsResponse>
 }
 
 
